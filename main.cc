@@ -5,39 +5,8 @@
 
 #include <GLFW/glfw3.h>
 
-#include "drawer.hh"
+#include "builder.hh"
 #include "events.hh"
-
-void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
-{
-    if (key == GLFW_KEY_ESCAPE) {
-        glfwSetWindowShouldClose(window, 1);
-    }
-
-    if (!Builder::drawer) {
-        return;
-    }
-
-    Builder::drawer->callback(window);
-}
-
-void cursor_position_callback(GLFWwindow* window, double xpos, double ypos)
-{
-    if (!Builder::drawer) {
-        return;
-    }
-
-    Builder::drawer->callback(window);
-}
-
-void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
-{
-    if (!Builder::drawer) {
-        return;
-    }
-
-    Builder::drawer->callback(window);
-}
 
 void init_view()
 {
@@ -53,7 +22,6 @@ void init_view()
 int main(int argc, char* argv[])
 {
     GLFWwindow* window;
-    Builder drawer;
 
     if (!glfwInit()) {
         std::cerr << "Failed to initialize GLFW\n";
@@ -70,18 +38,28 @@ int main(int argc, char* argv[])
 
     glfwMakeContextCurrent(window);
 
-    glfwSetKeyCallback(window, key_callback);
-    glfwSetCursorPosCallback(window, cursor_position_callback);
-    glfwSetMouseButtonCallback(window, mouse_button_callback);
-
     init_view();
+
+    Builder builder;
+    EventHandler handler;
+
+    handler.add().key(GLFW_KEY_ESCAPE, [](GLFWwindow* window, int) { glfwSetWindowShouldClose(window, 1); });
+    handler.add().key(GLFW_KEY_Z, [](GLFWwindow* window, int) { std::cout << "Zoom!\n"; });
+    handler.add(EventState::kInit).move([](GLFWwindow*, double x, double) { std::cout << x << "x\n"; });
+    handler.add(EventState::kInit).control().move([](GLFWwindow*, double, double y) { std::cout << y << "y\n"; });
+    handler.add(EventState::kInit).right_click([](GLFWwindow*) { std::cout << "right click\n"; });
+    handler.add(EventState::kInit).twice().right_click([](GLFWwindow*) { std::cout << "double right click\n"; });
+
+    glfwSetMouseButtonCallback(window, route_mouse_button_callback);
+    glfwSetCursorPosCallback(window, route_cursor_position_callback);
+    glfwSetKeyCallback(window, route_key_callback);
 
     // Main loop
     while (!glfwWindowShouldClose(window)) {
         glClearColor(0.1f, 0.2f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        drawer.draw();
+        builder.draw();
 
         // Swap buffers
         glfwSwapBuffers(window);

@@ -1,3 +1,4 @@
+#include <iostream>
 #include <unordered_map>
 #include <unordered_set>
 #include <variant>
@@ -6,8 +7,8 @@ class GLFWwindow;
 
 enum class EventState {
     kInit = 0,
-    kBuild = 0,
-    kSimulate = 0,
+    kBuild = 1,
+    kSimulate = 2,
 };
 
 using KeyHandler = std::function<void(GLFWwindow*, int)>;
@@ -106,9 +107,13 @@ public:
         return *this;
     }
 
+protected:
     // Get the finished result
-    const detail::EventWithMetadata& get_event_with_metadata() const
+    const detail::EventWithMetadata& get_event_with_metadata()
     {
+        if (std::visit([](const auto& event) { return static_cast<bool>(event.callback); }, data_.event) == false) {
+            throw std::runtime_error("Using EventBuilder without an event");
+        }
         return data_;
     }
 
@@ -126,6 +131,24 @@ public:
     {
         return instance_;
     }
+
+private:
+    inline static EventHandler* instance_;
+
+    struct BuilderDispatch : EventBuilder {
+        template <typename... Args>
+        BuilderDispatch(Args&&... args)
+            : end(std::forward<Args>(args)...)
+        {
+        }
+
+        ~BuilderDispatch()
+        {
+            end(get_event_with_metadata());
+        }
+
+        std::function<void(const detail::EventWithMetadata&)> end;
+    };
 
 public:
     EventHandler()
@@ -149,19 +172,32 @@ public:
     {
         return state_;
     }
-    void add_handler(EventState state, const EventBuilder& builder)
+    BuilderDispatch add()
     {
-        handlers_[state].emplace_back(builder.get_event_with_metadata());
+        return BuilderDispatch { [this](const detail::EventWithMetadata& data) {
+            // TODO add some kind of global handler
+            handlers_[EventState::kInit].emplace_back(data);
+            handlers_[EventState::kBuild].emplace_back(data);
+            handlers_[EventState::kSimulate].emplace_back(data);
+        } };
+    }
+    BuilderDispatch add(EventState state)
+    {
+        return BuilderDispatch { [state, this](const detail::EventWithMetadata& data) {
+            handlers_[state].emplace_back(data);
+        } };
     }
 
 public:
     void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
     {
+        mods_ = mods;
         if (is_holding_ && action == GLFW_RELEASE) {
             is_holding_ = false;
+            return;
         }
 
-        const bool double_click = (last_mouse_click_ - Clock::now()) <= kDoubleClick;
+        const bool double_click = (Clock::now() - last_mouse_click_) <= kDoubleClick;
 
         for (const auto& handler : handlers_[state_]) {
 
@@ -171,7 +207,7 @@ public:
             }
 
             // Make sure all of the modifiers are met
-            if ((handler.modifiers xor mods) != 0) {
+            if ((handler.modifiers xor mods_) != 0) {
                 continue;
             }
 
@@ -204,8 +240,12 @@ public:
                 continue;
             }
 
-            if (auto* event = std::get_if<detail::MouseMoveEvent>(&handler.event)) {
+            // Make sure all of the modifiers are met
+            if ((handler.modifiers xor mods_) != 0) {
+                continue;
+            }
 
+            if (auto* event = std::get_if<detail::MouseMoveEvent>(&handler.event)) {
                 event->callback(window, xpos, ypos);
             }
         }
@@ -213,55 +253,59 @@ public:
 
     void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
     {
-        for (const auto& handler : handlers_[state_]) {
+        mods_ = mods;
 
+        for (const auto& handler : handlers_[state_]) {
             if (handler.type == detail::Type::kHold && action == GLFW_REPEAT) {
                 continue;
             }
 
             // Make sure all of the modifiers are met
-            if ((handler.modifiers xor mods) != 0) {
+            if ((handler.modifiers xor mods_) != 0) {
                 continue;
             }
 
             // Now we can actually dispatch
-            if (auto* event = std::get_if<detail::KeyEvent>(&handler.event))
-                if (event->key == key)
+            if (auto* event = std::get_if<detail::KeyEvent>(&handler.event)) {
+                if (event->key == key) {
                     event->callback(window, key);
+                }
+            }
         }
     }
 
 private:
-    EventState state_;
+    EventState state_ = EventState::kInit;
+
     std::unordered_map<EventState, std::vector<detail::EventWithMetadata>> handlers_;
 
-    static constexpr auto kDoubleClick = std::chrono::milliseconds(5);
+    static constexpr auto kDoubleClick = std::chrono::milliseconds(200);
     using Clock = std::chrono::high_resolution_clock;
     Clock::time_point last_mouse_click_;
     bool is_holding_ = false;
 
-    inline static EventHandler* instance_;
+    int mods_ = 0;
 };
 
 //
 // #############################################################################
 //
 
-void hookup_mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
+void route_mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
     if (auto* handler = EventHandler::get()) {
         handler->mouse_button_callback(window, button, action, mods);
     }
 }
 
-void hookup_cursor_position_callback(GLFWwindow* window, double xpos, double ypos)
+void route_cursor_position_callback(GLFWwindow* window, double xpos, double ypos)
 {
     if (auto* handler = EventHandler::get()) {
         handler->cursor_position_callback(window, xpos, ypos);
     }
 }
 
-void hookup_key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
+void route_key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
     if (auto* handler = EventHandler::get()) {
         handler->key_callback(window, key, scancode, action, mods);
