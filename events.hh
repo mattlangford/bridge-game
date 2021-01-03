@@ -166,7 +166,7 @@ public:
         for (const auto& handler : handlers_[state_]) {
 
             // If this is a double click, don't try to do anything with non-double click handlers
-            if (double_click && handler.type != detail::Type::kDouble) {
+            if (handler.type == detail::Type::kDouble && !double_click) {
                 continue;
             }
 
@@ -199,10 +199,36 @@ public:
 
     void cursor_position_callback(GLFWwindow* window, double xpos, double ypos)
     {
+        for (const auto& handler : handlers_[state_]) {
+            if (handler.type == detail::Type::kHold && !is_holding_) {
+                continue;
+            }
+
+            if (auto* event = std::get_if<detail::MouseMoveEvent>(&handler.event)) {
+
+                event->callback(window, xpos, ypos);
+            }
+        }
     }
 
     void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
     {
+        for (const auto& handler : handlers_[state_]) {
+
+            if (handler.type == detail::Type::kHold && action == GLFW_REPEAT) {
+                continue;
+            }
+
+            // Make sure all of the modifiers are met
+            if ((handler.modifiers xor mods) != 0) {
+                continue;
+            }
+
+            // Now we can actually dispatch
+            if (auto* event = std::get_if<detail::KeyEvent>(&handler.event))
+                if (event->key == key)
+                    event->callback(window, key);
+        }
     }
 
 private:
@@ -214,7 +240,7 @@ private:
     Clock::time_point last_mouse_click_;
     bool is_holding_ = false;
 
-    static EventHandler* instance_;
+    inline static EventHandler* instance_;
 };
 
 //
@@ -223,12 +249,21 @@ private:
 
 void hookup_mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
+    if (auto* handler = EventHandler::get()) {
+        handler->mouse_button_callback(window, button, action, mods);
+    }
 }
 
 void hookup_cursor_position_callback(GLFWwindow* window, double xpos, double ypos)
 {
+    if (auto* handler = EventHandler::get()) {
+        handler->cursor_position_callback(window, xpos, ypos);
+    }
 }
 
 void hookup_key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
+    if (auto* handler = EventHandler::get()) {
+        handler->key_callback(window, key, scancode, action, mods);
+    }
 }
