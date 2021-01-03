@@ -6,6 +6,7 @@
 #include <GLFW/glfw3.h>
 
 #include "drawer.hh"
+#include "events.hh"
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
