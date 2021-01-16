@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <iostream>
 #include <unordered_map>
 #include <vector>
 
@@ -93,12 +94,11 @@ private:
         std::unordered_map<Coordinate2d, size_t, Coordinate2dHash> visited;
 
         // We'll create the triangles in order they were added. It's possible we can do better here
-        for (const Triangle triangle : triangles_) {
+        for (const auto& triangle : triangles_) {
             auto& mesh_triangle = mesh.triangles.emplace_back();
-            size_t next_vertex_index = mesh.vertices.size();
-
             for (size_t i = 0; i < triangle.size(); ++i) {
                 const Coordinate2d& coord = triangle[i];
+                const size_t next_vertex_index = mesh.vertices.size();
 
                 // Attempt to emplace this coordinate in the visited map
                 auto [it, emplaced] = visited.emplace(std::make_pair(coord, next_vertex_index));

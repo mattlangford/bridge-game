@@ -1,11 +1,47 @@
 #include "mesh.hh"
 
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 
+#define ASSERT_EQ(lhs, rhs)                                                                          \
+    if ((lhs) != (rhs)) {                                                                            \
+        std::stringstream ss;                                                                        \
+        ss << "Line: " << __LINE__ << ", ASSERT_EQ failed since lhs: " << lhs << " != rhs: " << rhs; \
+        throw std::runtime_error(ss.str());                                                          \
+    }
+#define EXPECT_EQ(lhs, rhs)                                                                                         \
+    if ((lhs) != (rhs)) {                                                                                           \
+        std::cout << "Line: " << __LINE__ << ", ASSERT_EQ failed since lhs: " << lhs << " != rhs: " << rhs << "\n"; \
+    }
+
 void test_mesh()
 {
+    MeshBuilder builder;
+    builder.add_triangle({ 0, 0 }, { 1, 0 }, { 0, 1 });
+    builder.add_triangle({ 1, 0 }, { 0, 1 }, { 1, 1 });
+
+    const auto mesh = builder.finalize();
+
+    // Vertex check
+    {
+        std::vector<size_t> expected { 0, 0, 1, 0, 0, 1, 1, 1 };
+        ASSERT_EQ(mesh.vertices.size(), 2 * 4);
+        for (size_t i = 0; i < mesh.vertices.size(); ++i)
+            ASSERT_EQ(mesh.vertices[i], expected[i]);
+    }
+
+    // Triangle vertex index check
+    {
+        std::array<size_t, 3> tri1 { 0, 2, 4 };
+        std::array<size_t, 3> tri2 { 2, 4, 6 };
+        ASSERT_EQ(mesh.triangles.size(), 2);
+        for (size_t i = 0; i < 3; ++i) {
+            EXPECT_EQ(mesh.triangles.front().indices[i], tri1[i]);
+            EXPECT_EQ(mesh.triangles.back().indices[i], tri2[i]);
+        }
+    }
 }
 
 int main(int argc, char* argv[])
