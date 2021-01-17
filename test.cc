@@ -5,10 +5,10 @@
 #include <string>
 #include <unordered_map>
 
-#define FORMAT(lhs, rhs, name)                                                          \
+#define FORMAT(lhs, rhs, name)                                                     \
     "Line: " << __LINE__ << ", " << name << " failed since these are not equal:\n" \
-                                      << "  " #lhs << " = " << lhs << "\n"              \
-                                      << "  " #rhs << " = " << rhs
+             << "  " #lhs << " = " << lhs << "\n"                                  \
+             << "  " #rhs << " = " << rhs
 
 #define ASSERT_EQ(lhs, rhs)                  \
     if ((lhs) != (rhs)) {                    \
@@ -24,9 +24,9 @@
 void test_mesh()
 {
     MeshBuilder builder;
-    builder.add_triangle({ 0, 0 }, { 1, 0 }, { 0, 1 }, {false, 100.0});
-    builder.add_triangle({ 1, 0 }, { 0, 1 }, { 1, 1 }, {true, 100.0});
-    builder.add_triangle({ 1, 0 }, { 1, 1 }, { 2, 1 }, {true, 50.0});
+    builder.add_triangle({ 0, 0 }, { 1, 0 }, { 0, 1 }, { false, 100.0 });
+    builder.add_triangle({ 1, 0 }, { 0, 1 }, { 1, 1 }, { true, 100.0 });
+    builder.add_triangle({ 1, 0 }, { 1, 1 }, { 2, 1 }, { true, 50.0 });
 
     const auto mesh = builder.finalize();
 

@@ -7,6 +7,7 @@
 
 #include "builder.hh"
 #include "events.hh"
+#include "mesh.hh"
 
 void init_view()
 {
@@ -44,22 +45,24 @@ int main(int argc, char* argv[])
     EventHandler handler;
 
     handler.add().key(GLFW_KEY_ESCAPE, [](GLFWwindow* window, int) { glfwSetWindowShouldClose(window, 1); });
-    handler.add().key(GLFW_KEY_Z, [](GLFWwindow* window, int) { std::cout << "Zoom!\n"; });
-    handler.add(EventState::kInit).move([](GLFWwindow*, double x, double) { std::cout << x << "x\n"; });
-    handler.add(EventState::kInit).control().move([](GLFWwindow*, double, double y) { std::cout << y << "y\n"; });
-    handler.add(EventState::kInit).right_click([](GLFWwindow*) { std::cout << "right click\n"; });
-    handler.add(EventState::kInit).twice().right_click([](GLFWwindow*) { std::cout << "double right click\n"; });
 
     glfwSetMouseButtonCallback(window, route_mouse_button_callback);
     glfwSetCursorPosCallback(window, route_cursor_position_callback);
     glfwSetKeyCallback(window, route_key_callback);
+
+    MeshBuilder mesh_builder;
+    mesh_builder.add_triangle({ 300, 300 }, { 400, 300 }, { 300, 400 }, { false, 1.0 });
+    mesh_builder.add_triangle({ 400, 300 }, { 300, 400 }, { 400, 400 }, { false, 0.5 });
+    mesh_builder.add_triangle({ 600, 600 }, { 632, 550 }, { 700, 100 }, { false, 0.1 });
+    const auto mesh = mesh_builder.finalize();
 
     // Main loop
     while (!glfwWindowShouldClose(window)) {
         glClearColor(0.1f, 0.2f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        builder.draw();
+        // builder.draw();
+        draw_mesh(mesh);
 
         // Swap buffers
         glfwSwapBuffers(window);

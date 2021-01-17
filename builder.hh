@@ -2,6 +2,8 @@
 #include <utility>
 #include <vector>
 
+#include "mesh.hh"
+
 static constexpr size_t kWidth = 1280;
 static constexpr size_t kHeight = 720;
 
@@ -27,6 +29,24 @@ void set_color_from_cell(const Cell& c)
     case Cell::kNone:
     default:
         return;
+    }
+}
+
+double get_mass_from_cell(const Cell& c)
+{
+    switch (c) {
+    case Cell::kBrick:
+        return 0.3;
+        return;
+    case Cell::kStone:
+        return 0.9;
+        return;
+    case Cell::kRoad:
+        return 0.7;
+        return;
+    case Cell::kNone:
+    default:
+        return 0.0;
     }
 }
 
@@ -111,6 +131,10 @@ public:
                 set_cell(w_block + w, h_block + h);
             }
         }
+    }
+
+    Mesh convert_to_mesh() const
+    {
     }
 
 private:

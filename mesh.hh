@@ -1,9 +1,12 @@
 #pragma once
 
 #include <array>
+#include <compare>
 #include <iostream>
 #include <unordered_map>
 #include <vector>
+
+#include <GLFW/glfw3.h>
 
 //
 // #############################################################################
@@ -18,10 +21,10 @@ struct Connection {
 // #############################################################################
 //
 
-struct Metadata
-{
-    bool fixed = false;
-    float mass = 0.0;
+struct Metadata {
+    bool fixed;
+    float mass;
+    auto operator<=>(const Metadata&) const = default;
 };
 
 //
@@ -75,8 +78,7 @@ class MeshBuilder {
 private:
     using Coordinate = uint32_t;
     using Coordinate2d = std::pair<Coordinate, Coordinate>;
-    struct BuildingTriangle
-    {
+    struct BuildingTriangle {
         std::array<std::pair<Coordinate, Coordinate>, 3> coords;
         Metadata metadata;
     };
@@ -90,7 +92,7 @@ public:
 public:
     void add_triangle(const Coordinate2d& c0, const Coordinate2d& c1, const Coordinate2d& c2, const Metadata& metadata)
     {
-        triangles_.emplace_back(BuildingTriangle { {c0, c1, c2}, metadata });
+        triangles_.emplace_back(BuildingTriangle { { c0, c1, c2 }, metadata });
     }
 
     Mesh finalize() const
@@ -199,3 +201,27 @@ private:
 //
 // #############################################################################
 //
+
+void draw_mesh(const Mesh& mesh)
+{
+    glBegin(GL_TRIANGLES);
+
+    Metadata last_metadata;
+    for (const Triangle& triangle : mesh.triangles) {
+        // Configure the color if we've changed the type of triangle we're rendering
+        if (triangle.metadata != last_metadata) {
+            float color = std::fmod(triangle.metadata.mass, 1.0);
+            glColor3f(color, color, color);
+        }
+        last_metadata = triangle.metadata;
+
+        const auto x = [&](uint8_t i) { return mesh.vertices[triangle.indices[i]]; };
+        const auto y = [&](uint8_t i) { return mesh.vertices[triangle.indices[i] + 1]; };
+
+        glVertex2f(x(0), y(0));
+        glVertex2f(x(1), y(1));
+        glVertex2f(x(2), y(2));
+    }
+
+    glEnd();
+}
