@@ -90,7 +90,7 @@ public:
     }
 
 public:
-    void add_triangle(const Coordinate2d& c0, const Coordinate2d& c1, const Coordinate2d& c2, const Metadata& metadata)
+    void add_triangle(Coordinate2d c0, Coordinate2d c1, Coordinate2d c2, Metadata metadata={})
     {
         triangles_.emplace_back(BuildingTriangle { { c0, c1, c2 }, metadata });
     }
@@ -224,4 +224,17 @@ void draw_mesh(const Mesh& mesh)
     }
 
     glEnd();
+}
+
+//
+// #############################################################################
+//
+
+float area(const Triangle& triangle, const Mesh& mesh)
+{
+    auto x = [&](size_t i) { return mesh.vertices[triangle.indices[i - 1]]; };
+    auto y = [&](size_t i) { return mesh.vertices[triangle.indices[i - 1] + 1]; };
+
+    // From [1] 4.70, I'm keeping the indices one-indexed like they do
+    return 0.5f * abs((x(1) - x(3)) * (y(2) - y(3)) - (y(1) - y(3)) * (x(2) - x(3)));
 }
