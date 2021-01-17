@@ -12,9 +12,24 @@ enum class EventState {
     kSimulate = 2,
 };
 
+std::string event_state_to_string(const EventState& event_state)
+{
+    switch (event_state) {
+    case EventState::kInit:
+        return "Init";
+    case EventState::kBuild:
+        return "Build";
+    case EventState::kSimulate:
+        return "Simulate";
+    default:
+        return "unknown";
+    }
+}
+
 using KeyHandler = std::function<void(GLFWwindow*, int)>;
 using MouseHandler = std::function<void(GLFWwindow*)>;
 using MouseMoveHandler = std::function<void(GLFWwindow*, double, double)>;
+using StateChange = std::function<void(EventState)>;
 
 //
 // #############################################################################
@@ -175,6 +190,7 @@ public:
             throw std::runtime_error("Only one event handler allowed!");
         }
         instance_ = this;
+        set_state(EventState::kInit);
     }
     ~EventHandler()
     {
@@ -184,12 +200,29 @@ public:
 public:
     void set_state(EventState state)
     {
+        if (get_state() == state)
+            return;
         state_ = state;
+        for (auto& callback : state_callbacks_[state_]) {
+            callback(state_);
+        }
     }
     EventState get_state() const
     {
         return state_;
     }
+    void add_state_callback(StateChange callback)
+    {
+        // TODO add some kind of global handler
+        state_callbacks_[EventState::kInit].emplace_back(callback);
+        state_callbacks_[EventState::kBuild].emplace_back(callback);
+        state_callbacks_[EventState::kSimulate].emplace_back(callback);
+    }
+    void add_state_callback(EventState state, StateChange callback)
+    {
+        state_callbacks_[state].emplace_back(std::move(callback));
+    }
+
     BuilderDispatch add()
     {
         return BuilderDispatch { [this](const detail::EventWithMetadata& data) {
@@ -317,6 +350,7 @@ private:
     EventState state_ = EventState::kInit;
 
     std::unordered_map<EventState, std::vector<detail::EventWithMetadata>> handlers_;
+    std::unordered_map<EventState, std::vector<StateChange>> state_callbacks_;
 
     static constexpr auto kDoubleClick = std::chrono::milliseconds(200);
     using Clock = std::chrono::high_resolution_clock;

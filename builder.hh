@@ -1,4 +1,5 @@
 #include <optional>
+#include <queue>
 #include <utility>
 #include <vector>
 
@@ -77,52 +78,123 @@ public:
     void setup_callbacks(EventHandler& handler)
     {
         // Updating the drawing mode
-        handler.add().key(GLFW_KEY_1, [this](GLFWwindow*, int) {
+        handler.add(EventState::kBuild).key(GLFW_KEY_1, [this](GLFWwindow*, int) {
             drawing_cell_ = Cell::kBrick;
             data_[index(0, 0)] = drawing_cell_;
         });
-        handler.add().key(GLFW_KEY_2, [this](GLFWwindow*, int) {
+        handler.add(EventState::kBuild).key(GLFW_KEY_2, [this](GLFWwindow*, int) {
             drawing_cell_ = Cell::kRoad;
             data_[index(0, 0)] = drawing_cell_;
         });
 
         // Update cursor zoom
-        handler.add().key(GLFW_KEY_Z, [this](GLFWwindow*, int) {
+        handler.add(EventState::kBuild).key(GLFW_KEY_Z, [this](GLFWwindow*, int) {
             cursor_zoom_++;
         });
-        handler.add().key(GLFW_KEY_X, [this](GLFWwindow*, int) {
+        handler.add(EventState::kBuild).key(GLFW_KEY_X, [this](GLFWwindow*, int) {
             cursor_zoom_ = 1;
         });
 
-        handler.add().key(GLFW_KEY_LEFT_CONTROL, [this](GLFWwindow*, int) {
+        handler.add(EventState::kBuild).key(GLFW_KEY_LEFT_CONTROL, [this](GLFWwindow*, int) {
             erase_mode_ = true;
         });
-        handler.add().release().key(GLFW_KEY_LEFT_CONTROL, [this](GLFWwindow*, int) {
+        handler.add(EventState::kBuild).release().key(GLFW_KEY_LEFT_CONTROL, [this](GLFWwindow*, int) {
             erase_mode_ = false;
         });
 
-        handler.add().any_type().any_modifier().move([this](GLFWwindow*, double xpos, double ypos) {
+        handler.add(EventState::kBuild).any_type().any_modifier().move([this](GLFWwindow*, double xpos, double ypos) {
             set_mouse_block(xpos, ypos);
         });
 
         // Draw
-        handler.add().left_click([this](GLFWwindow*) {
+        handler.add(EventState::kBuild).left_click([this](GLFWwindow*) {
             set_cell_at_mouse_block(erase_mode_ ? Cell::kNone : drawing_cell_);
         });
-        handler.add().hold().any_modifier().move([this](GLFWwindow*, double xpos, double ypos) {
+        handler.add(EventState::kBuild).hold().any_modifier().move([this](GLFWwindow*, double xpos, double ypos) {
             set_cell_at_mouse_block(erase_mode_ ? Cell::kNone : drawing_cell_);
         });
     }
 
-    Mesh convert_to_mesh() const
+    Mesh generate_mesh() const
     {
-        return {};
+        MeshBuilder builder;
+
+        std::unordered_set<size_t> visited;
+
+        // Find a place to start a new mesh, we'll consider everything that's touching to be in the same mesh
+        for (size_t index = 0; index < data_.size(); ++index) {
+            // Simple breadth first search
+            std::queue<size_t> bfs;
+
+            auto add_index = [&](const size_t index) {
+                if (index >= data_.size())
+                    return false; // Don't worry if it's off screen
+                if (data_[index] == Cell::kNone)
+                    return false; // Don't worry if it's not populated
+                auto [it, emplaced] = visited.emplace(index);
+                if (emplaced)
+                    bfs.push(index); // If it wasn't in the visited list we can queue it up
+                return emplaced;
+            };
+
+            // If this first one fails we've either already visited this node or it's none
+            if (!add_index(index)) {
+                continue;
+            }
+
+            std::vector<size_t> indices;
+            while (!bfs.empty()) {
+                const size_t this_index = bfs.front();
+                bfs.pop();
+
+                indices.push_back(this_index);
+
+                // Right neighbor
+                add_index(this_index + 1);
+                // Upper neighbor
+                add_index(this_index + num_h_blocks);
+                // Left neighbor
+                add_index(this_index - 1);
+                // Bottom neighbor
+                add_index(this_index - num_h_blocks);
+            }
+
+            // Now we can go through and add the triangles to the meshes
+            for (const size_t this_index : indices) {
+                const Cell& cell = data_[this_index];
+
+                Metadata metadata;
+                metadata.fixed = cell == Cell::kStone;
+                metadata.mass = get_mass_from_cell(cell);
+
+                const auto [w_block, h_block] = reverse_index(this_index);
+
+                const uint16_t w_px = w_block * kPxSize;
+                const uint16_t h_px = h_block * kPxSize;
+
+                const uint16_t w_end = w_px + kPxSize;
+                const uint16_t h_end = h_px + kPxSize;
+
+                // top half
+                builder.add_triangle({ w_px, h_px }, { w_end, h_px }, { w_px, h_end }, metadata);
+
+                // bottom half
+                builder.add_triangle({ w_end, h_end }, { w_end, h_px }, { w_px, h_end }, metadata);
+            }
+        }
+
+        return builder.finalize();
     }
 
 private:
     size_t index(uint16_t w_block, uint16_t h_block) const
     {
         return w_block * num_h_blocks + h_block;
+    }
+    std::pair<uint16_t, uint16_t> reverse_index(size_t index) const
+    {
+        auto [q, r] = std::ldiv(index, num_h_blocks);
+        return { q, r };
     }
 
     void set_mouse_block(double xpos, double ypos)

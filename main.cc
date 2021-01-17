@@ -8,6 +8,7 @@
 #include "builder.hh"
 #include "events.hh"
 #include "mesh.hh"
+#include "simulate.hh"
 
 void init_view()
 {
@@ -18,6 +19,30 @@ void init_view()
 
     // this creates a canvas to do 2D drawing on
     glOrtho(0.0, kWidth, 0.0, kHeight, 0.0, 1.0);
+}
+
+void print_state(EventState state)
+{
+    std::cout << "EventHandler::set_state() to '" << event_state_to_string(state) << "'\n";
+}
+
+void print_fps()
+{
+    using Clock = std::chrono::high_resolution_clock;
+
+    // Meh, global variables here just to make it easy
+    static size_t frame_counter = 0;
+    static Clock::time_point last_time = Clock::now();
+
+    static constexpr size_t kFPSFrames = 10;
+    if (frame_counter++ % kFPSFrames == 0) {
+        auto now = Clock::now();
+
+        const double fps = kFPSFrames / std::chrono::duration<double>(now - last_time).count();
+        std::cout << "Average fps: " << fps << "\n";
+
+        last_time = now;
+    }
 }
 
 int main(int argc, char* argv[])
@@ -41,31 +66,58 @@ int main(int argc, char* argv[])
 
     init_view();
 
-    Builder builder;
     EventHandler handler;
 
+    Builder builder;
+    Simlator simulator;
+
+    handler.add_state_callback(&print_state);
     handler.add().key(GLFW_KEY_ESCAPE, [](GLFWwindow* window, int) { glfwSetWindowShouldClose(window, 1); });
+    handler.add().key(GLFW_KEY_SPACE, [&](GLFWwindow* window, int) {
+        auto state = handler.get_state();
+        switch (state) {
+        case EventState::kInit:
+        case EventState::kSimulate:
+            handler.set_state(EventState::kBuild);
+            break;
+        case EventState::kBuild:
+            handler.set_state(EventState::kSimulate);
+            break;
+        }
+    });
+    handler.add_state_callback(EventState::kSimulate, [&](EventState) {
+        simulator.set_mesh(builder.generate_mesh());
+    });
     builder.setup_callbacks(handler);
 
     glfwSetMouseButtonCallback(window, route_mouse_button_callback);
     glfwSetCursorPosCallback(window, route_cursor_position_callback);
     glfwSetKeyCallback(window, route_key_callback);
 
-    // MeshBuilder mesh_builder;
-    // mesh_builder.add_triangle({ 300, 300 }, { 400, 300 }, { 300, 400 }, { false, 1.0 });
-    // mesh_builder.add_triangle({ 400, 300 }, { 300, 400 }, { 400, 400 }, { false, 0.5 });
-    // mesh_builder.add_triangle({ 600, 600 }, { 632, 550 }, { 700, 100 }, { false, 0.1 });
-    // const auto mesh = mesh_builder.finalize();
+    handler.set_state(EventState::kBuild);
 
     // Main loop
     while (!glfwWindowShouldClose(window)) {
         glClearColor(0.1f, 0.2f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        builder.draw();
+        auto state = handler.get_state();
+        switch (state) {
+        case EventState::kBuild: {
+            builder.draw();
+            break;
+        }
+        case EventState::kSimulate: {
+            simulator.step();
+            simulator.draw();
+            break;
+        }
+        default:
+            continue;
+        }
 
-        // Swap buffers
         glfwSwapBuffers(window);
+        print_fps();
         glfwPollEvents();
     }
 
