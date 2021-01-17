@@ -2,6 +2,7 @@
 #include <utility>
 #include <vector>
 
+#include "events.hh"
 #include "mesh.hh"
 
 static constexpr size_t kWidth = 1280;
@@ -37,13 +38,10 @@ double get_mass_from_cell(const Cell& c)
     switch (c) {
     case Cell::kBrick:
         return 0.3;
-        return;
     case Cell::kStone:
         return 0.9;
-        return;
     case Cell::kRoad:
         return 0.7;
-        return;
     case Cell::kNone:
     default:
         return 0.0;
@@ -76,31 +74,59 @@ public:
         draw_mouse();
     }
 
-    // Lazy single callback for all actions (regardless of if they're keyboard or mouse)
-    void callback(GLFWwindow* window)
+    void setup_callbacks(EventHandler& handler)
     {
-        // Update if we're erasing or not
-        const bool control = glfwGetKey(window, GLFW_KEY_LEFT_CONTROL);
-        erase_mode_ = control;
-
         // Updating the drawing mode
-        if (glfwGetKey(window, GLFW_KEY_1)) {
+        handler.add().key(GLFW_KEY_1, [this](GLFWwindow*, int) {
             drawing_cell_ = Cell::kBrick;
-        } else if (glfwGetKey(window, GLFW_KEY_2)) {
+            data_[index(0, 0)] = drawing_cell_;
+        });
+        handler.add().key(GLFW_KEY_2, [this](GLFWwindow*, int) {
             drawing_cell_ = Cell::kRoad;
-        }
-        data_[index(0, 0)] = drawing_cell_;
+            data_[index(0, 0)] = drawing_cell_;
+        });
 
         // Update cursor zoom
-        if (glfwGetKey(window, GLFW_KEY_Z)) {
+        handler.add().key(GLFW_KEY_Z, [this](GLFWwindow*, int) {
             cursor_zoom_++;
-        } else if (glfwGetKey(window, GLFW_KEY_X)) {
+        });
+        handler.add().key(GLFW_KEY_X, [this](GLFWwindow*, int) {
             cursor_zoom_ = 1;
-        }
+        });
 
-        double xpos, ypos;
-        glfwGetCursorPos(window, &xpos, &ypos);
+        handler.add().key(GLFW_KEY_LEFT_CONTROL, [this](GLFWwindow*, int) {
+            erase_mode_ = true;
+        });
+        handler.add().release().key(GLFW_KEY_LEFT_CONTROL, [this](GLFWwindow*, int) {
+            erase_mode_ = false;
+        });
 
+        handler.add().any_type().any_modifier().move([this](GLFWwindow*, double xpos, double ypos) {
+            set_mouse_block(xpos, ypos);
+        });
+
+        // Draw
+        handler.add().left_click([this](GLFWwindow*) {
+            set_cell_at_mouse_block(erase_mode_ ? Cell::kNone : drawing_cell_);
+        });
+        handler.add().hold().any_modifier().move([this](GLFWwindow*, double xpos, double ypos) {
+            set_cell_at_mouse_block(erase_mode_ ? Cell::kNone : drawing_cell_);
+        });
+    }
+
+    Mesh convert_to_mesh() const
+    {
+        return {};
+    }
+
+private:
+    size_t index(uint16_t w_block, uint16_t h_block) const
+    {
+        return w_block * num_h_blocks + h_block;
+    }
+
+    void set_mouse_block(double xpos, double ypos)
+    {
         // Don't worry about anything else here if the mouse is off screen
         if (xpos < 0 || ypos < 0 || xpos >= kWidth || ypos >= kHeight) {
             mouse_block_ = std::nullopt;
@@ -110,37 +136,22 @@ public:
         uint16_t w_block = static_cast<uint16_t>(xpos) / kPxSize;
         uint16_t h_block = static_cast<uint16_t>(kHeight - ypos) / kPxSize;
         mouse_block_ = std::make_pair(w_block, h_block);
+    }
 
-        // Make sure we're pressed before we start drawing
-        const bool pressed = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
-        if (!pressed) {
+    void set_cell_at_mouse_block(const Cell& new_cell, bool force = false)
+    {
+        if (!mouse_block_)
             return;
-        }
 
-        // Populate a cell. Stone can't be overwritten
-        const auto set_cell = [this](uint16_t w_block, uint16_t h_block) {
-            Cell& cell = data_[index(w_block, h_block)];
-            if (cell != Cell::kStone) {
-                cell = erase_mode_ ? Cell::kNone : drawing_cell_;
-            }
-        };
-
-        // Since the cursor may be zoomed, deal with that
+        const auto& [w_block, h_block] = *mouse_block_;
         for (size_t w = 0; w < cursor_zoom_; ++w) {
             for (size_t h = 0; h < cursor_zoom_; ++h) {
-                set_cell(w_block + w, h_block + h);
+                Cell& cell = data_[index(w_block + w, h_block + h)];
+                if (cell != Cell::kStone || force) {
+                    cell = new_cell;
+                }
             }
         }
-    }
-
-    Mesh convert_to_mesh() const
-    {
-    }
-
-private:
-    size_t index(uint16_t w_block, uint16_t h_block) const
-    {
-        return w_block * num_h_blocks + h_block;
     }
 
     void draw_cells() const

@@ -1,3 +1,4 @@
+#pragma once
 #include <iostream>
 #include <unordered_map>
 #include <unordered_set>
@@ -21,9 +22,11 @@ using MouseMoveHandler = std::function<void(GLFWwindow*, double, double)>;
 
 namespace detail {
 enum class Type : uint8_t {
-    kSingle = 0,
-    kDouble = 1,
-    kHold = 2,
+    kAny = 0,
+    kPress = 1,
+    kDoublePress = 2,
+    kHold = 3,
+    kRelease = 4,
 };
 
 struct KeyEvent {
@@ -43,7 +46,7 @@ using Event = std::variant<KeyEvent, MouseMoveEvent, LeftButtonMouseEvent, Right
 
 struct EventWithMetadata {
     Event event;
-    Type type = Type::kSingle;
+    Type type = Type::kPress;
     int modifiers = 0;
 };
 
@@ -72,16 +75,31 @@ public:
         data_.modifiers |= GLFW_MOD_SHIFT;
         return *this;
     }
+    EventBuilder& any_modifier()
+    {
+        data_.modifiers = -1;
+        return *this;
+    }
 
     // Type
     EventBuilder& twice()
     {
-        data_.type = detail::Type::kDouble;
+        data_.type = detail::Type::kDoublePress;
         return *this;
     }
     EventBuilder& hold()
     {
         data_.type = detail::Type::kHold;
+        return *this;
+    }
+    EventBuilder& any_type()
+    {
+        data_.type = detail::Type::kAny;
+        return *this;
+    }
+    EventBuilder& release()
+    {
+        data_.type = detail::Type::kRelease;
         return *this;
     }
 
@@ -200,14 +218,20 @@ public:
         const bool double_click = (Clock::now() - last_mouse_click_) <= kDoubleClick;
 
         for (const auto& handler : handlers_[state_]) {
+            if (handler.type != detail::Type::kAny) {
+                using Type = detail::Type;
+                auto& type = handler.type;
 
-            // If this is a double click, don't try to do anything with non-double click handlers
-            if (handler.type == detail::Type::kDouble && !double_click) {
-                continue;
+                if ((type == Type::kHold) xor is_holding_)
+                    continue;
+                if (type == Type::kRelease && action != GLFW_RELEASE)
+                    continue;
+                if ((type == Type::kPress || type == Type::kDoublePress) && action != GLFW_PRESS)
+                    continue;
             }
 
             // Make sure all of the modifiers are met
-            if ((handler.modifiers xor mods_) != 0) {
+            if ((handler.modifiers >= 0) && (handler.modifiers xor mods_) != 0) {
                 continue;
             }
 
@@ -236,12 +260,12 @@ public:
     void cursor_position_callback(GLFWwindow* window, double xpos, double ypos)
     {
         for (const auto& handler : handlers_[state_]) {
-            if (handler.type == detail::Type::kHold && !is_holding_) {
+            if ((handler.type != detail::Type::kAny) && (handler.type == detail::Type::kHold) xor is_holding_) {
                 continue;
             }
 
             // Make sure all of the modifiers are met
-            if ((handler.modifiers xor mods_) != 0) {
+            if ((handler.modifiers >= 0) && (handler.modifiers xor mods_) != 0) {
                 continue;
             }
 
@@ -256,13 +280,28 @@ public:
         mods_ = mods;
 
         for (const auto& handler : handlers_[state_]) {
-            if (handler.type == detail::Type::kHold && action == GLFW_REPEAT) {
-                continue;
+            if (handler.type != detail::Type::kAny) {
+                using Type = detail::Type;
+                auto& type = handler.type;
+
+                if (type == Type::kHold && action != GLFW_REPEAT)
+                    continue;
+                if (type == Type::kRelease && action != GLFW_RELEASE)
+                    continue;
+                if ((type == Type::kPress || type == Type::kDoublePress) && action != GLFW_PRESS)
+                    continue;
             }
 
             // Make sure all of the modifiers are met
-            if ((handler.modifiers xor mods_) != 0) {
-                continue;
+            if ((handler.modifiers >= 0) && (handler.modifiers xor mods_) != 0) {
+
+                // Control or shift modifiers are fine, if that's the key being pressed. Only skip if the key isn't one
+                // of those two
+                bool control_key = key == GLFW_KEY_LEFT_CONTROL || key == GLFW_KEY_RIGHT_CONTROL;
+                bool shift_key = key == GLFW_KEY_LEFT_SHIFT || key == GLFW_KEY_RIGHT_SHIFT;
+                if (((mods_ xor GLFW_MOD_CONTROL) == 0 && !control_key) || ((mods_ xor GLFW_MOD_SHIFT) == 0 && !shift_key)) {
+                    continue;
+                }
             }
 
             // Now we can actually dispatch
