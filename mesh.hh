@@ -126,15 +126,16 @@ private:
             std::vector<std::vector<Connection>*> destinations;
         };
 
+        // Since we only store connections to the first coordinate in each pair, we only need half the size here
         // TODO(mlangford): This can probably be made better and avoid a crap ton of copies
-        std::vector<ConnectionHelper> connections(mesh.vertices.size());
+        std::vector<ConnectionHelper> connections(mesh.vertices.size() / 2);
         for (size_t triangle_index = 0; triangle_index < mesh.triangles.size(); ++triangle_index) {
             auto& triangle = mesh.triangles[triangle_index];
             for (size_t coord_index = 0; coord_index < triangle.indices.size(); ++coord_index) {
                 const size_t vertex_index = triangle.indices[coord_index];
                 auto& connection = triangle.connections[coord_index];
 
-                auto& helper = connections[vertex_index];
+                auto& helper = connections[vertex_index / 2];
                 helper.connections.emplace_back(Connection { triangle_index, coord_index });
                 helper.destinations.emplace_back(&connection);
             }
