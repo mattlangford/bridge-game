@@ -24,9 +24,9 @@
 void test_mesh()
 {
     MeshBuilder builder;
-    builder.add_triangle({ 0, 0 }, { 1, 0 }, { 0, 1 });
-    builder.add_triangle({ 1, 0 }, { 0, 1 }, { 1, 1 });
-    builder.add_triangle({ 1, 0 }, { 1, 1 }, { 2, 1 });
+    builder.add_triangle({ 0, 0 }, { 1, 0 }, { 0, 1 }, {false, 100.0});
+    builder.add_triangle({ 1, 0 }, { 0, 1 }, { 1, 1 }, {true, 100.0});
+    builder.add_triangle({ 1, 0 }, { 1, 1 }, { 2, 1 }, {true, 50.0});
 
     const auto mesh = builder.finalize();
 
@@ -49,6 +49,9 @@ void test_mesh()
             EXPECT_EQ(mesh.triangles[1].indices[i], tri2[i]);
             EXPECT_EQ(mesh.triangles[2].indices[i], tri3[i]);
         }
+
+        EXPECT_EQ(mesh.triangles[0].metadata.fixed, false);
+        EXPECT_EQ(mesh.triangles[0].metadata.mass, 100.0);
     }
 
     // Triangle connection index check

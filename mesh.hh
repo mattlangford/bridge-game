@@ -18,6 +18,16 @@ struct Connection {
 // #############################################################################
 //
 
+struct Metadata
+{
+    bool fixed = false;
+    float mass = 0.0;
+};
+
+//
+// #############################################################################
+//
+
 struct Triangle {
     static constexpr size_t kDim = 3;
 
@@ -30,6 +40,11 @@ struct Triangle {
     /// External connections to other triangles for each vertex
     ///
     std::array<std::vector<Connection>, kDim> connections;
+
+    ///
+    /// Generic metadata that helps with rendering or simulating the mesh
+    ///
+    Metadata metadata;
 };
 
 //
@@ -60,7 +75,11 @@ class MeshBuilder {
 private:
     using Coordinate = uint32_t;
     using Coordinate2d = std::pair<Coordinate, Coordinate>;
-    using Triangle = std::array<std::pair<Coordinate, Coordinate>, 3>;
+    struct BuildingTriangle
+    {
+        std::array<std::pair<Coordinate, Coordinate>, 3> coords;
+        Metadata metadata;
+    };
 
 public:
     MeshBuilder(size_t num_triangles_guess = 0)
@@ -69,9 +88,9 @@ public:
     }
 
 public:
-    void add_triangle(const Coordinate2d& c0, const Coordinate2d& c1, const Coordinate2d& c2)
+    void add_triangle(const Coordinate2d& c0, const Coordinate2d& c1, const Coordinate2d& c2, const Metadata& metadata)
     {
-        triangles_.emplace_back(Triangle { c0, c1, c2 });
+        triangles_.emplace_back(BuildingTriangle { {c0, c1, c2}, metadata });
     }
 
     Mesh finalize() const
@@ -94,10 +113,12 @@ private:
         std::unordered_map<Coordinate2d, size_t, Coordinate2dHash> visited;
 
         // We'll create the triangles in order they were added. It's possible we can do better here
-        for (const auto& triangle : triangles_) {
+        for (const BuildingTriangle& triangle : triangles_) {
             auto& mesh_triangle = mesh.triangles.emplace_back();
-            for (size_t i = 0; i < triangle.size(); ++i) {
-                const Coordinate2d& coord = triangle[i];
+
+            mesh_triangle.metadata = triangle.metadata;
+            for (size_t i = 0; i < triangle.coords.size(); ++i) {
+                const Coordinate2d& coord = triangle.coords[i];
                 const size_t next_vertex_index = mesh.vertices.size();
 
                 // Attempt to emplace this coordinate in the visited map
@@ -172,7 +193,7 @@ private:
     ///
     /// We'll store them as triangles as we're building, but then convert to a flat vector at the end
     ///
-    std::vector<Triangle> triangles_;
+    std::vector<BuildingTriangle> triangles_;
 };
 
 //
