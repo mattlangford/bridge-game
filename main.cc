@@ -35,7 +35,7 @@ void print_fps()
     static Clock::time_point last_time = Clock::now();
 
     static constexpr size_t kFPSFrames = 10;
-    if (frame_counter++ % kFPSFrames == 0) {
+    if (++frame_counter % kFPSFrames == 0) {
         auto now = Clock::now();
 
         const double fps = kFPSFrames / std::chrono::duration<double>(now - last_time).count();
@@ -47,6 +47,8 @@ void print_fps()
 
 int main(int argc, char* argv[])
 {
+    EventHandler handler;
+
     GLFWwindow* window;
 
     if (!glfwInit()) {
@@ -66,11 +68,11 @@ int main(int argc, char* argv[])
 
     init_view();
 
-    EventHandler handler;
-
     Builder builder;
     Simlator simulator;
 
+    // Set up all the callbacks, note that some of these capture by reference but since the EventHandler outlives
+    // everything in the main function, this should be fine.
     handler.add_state_callback(&print_state);
     handler.add().key(GLFW_KEY_ESCAPE, [](GLFWwindow* window, int) { glfwSetWindowShouldClose(window, 1); });
     handler.add().key(GLFW_KEY_SPACE, [&](GLFWwindow* window, int) {

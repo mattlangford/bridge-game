@@ -86,6 +86,7 @@ public:
             drawing_cell_ = Cell::kRoad;
             data_[index(0, 0)] = drawing_cell_;
         });
+        data_[index(0, 0)] = drawing_cell_;
 
         // Update cursor zoom
         handler.add(EventState::kBuild).key(GLFW_KEY_Z, [this](GLFWwindow*, int) {

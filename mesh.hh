@@ -90,7 +90,7 @@ public:
     }
 
 public:
-    void add_triangle(Coordinate2d c0, Coordinate2d c1, Coordinate2d c2, Metadata metadata={})
+    void add_triangle(Coordinate2d c0, Coordinate2d c1, Coordinate2d c2, Metadata metadata = {})
     {
         triangles_.emplace_back(BuildingTriangle { { c0, c1, c2 }, metadata });
     }

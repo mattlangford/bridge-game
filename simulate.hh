@@ -1,3 +1,4 @@
+#include <Eigen/Dense>
 #include <chrono>
 #include <iostream>
 #include <optional>
@@ -48,6 +49,7 @@ public:
         std::fill(vertex_velocities_.begin(), vertex_velocities_.end(), 0.0f);
     }
 
+private:
 private:
     std::vector<float> vertex_velocities_;
     Mesh mesh_;
