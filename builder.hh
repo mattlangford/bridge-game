@@ -38,7 +38,8 @@ double get_mass_from_cell(const Cell& c)
 {
     switch (c) {
     case Cell::kBrick:
-        return 0.3;
+        // Assume 50 bricks per m^3 and 3.1kg per brick
+        return 50.0 * 3.1;
     case Cell::kStone:
         return 0.9;
     case Cell::kRoad:
@@ -170,17 +171,18 @@ public:
 
                 const auto [w_block, h_block] = reverse_index(this_index);
 
-                const uint16_t w_px = w_block * kPxSize;
-                const uint16_t h_px = h_block * kPxSize;
+                constexpr size_t kBlockSize = 1; // meters
+                const uint16_t w_m = w_block * kBlockSize;
+                const uint16_t h_m = h_block * kBlockSize;
 
-                const uint16_t w_end = w_px + kPxSize;
-                const uint16_t h_end = h_px + kPxSize;
+                const uint16_t w_end = w_m + kBlockSize;
+                const uint16_t h_end = h_m + kBlockSize;
 
                 // top half
-                builder.add_triangle({ w_px, h_px }, { w_end, h_px }, { w_px, h_end }, metadata);
+                builder.add_triangle({ w_m, h_m }, { w_end, h_m }, { w_m, h_end }, metadata);
 
                 // bottom half
-                builder.add_triangle({ w_end, h_end }, { w_end, h_px }, { w_px, h_end }, metadata);
+                builder.add_triangle({ w_end, h_end }, { w_end, h_m }, { w_m, h_end }, metadata);
             }
         }
 
@@ -317,6 +319,8 @@ private:
 
     void generate_ridge()
     {
+        data_[500] = Cell::kStone;
+        return;
         // The bottom of the ridge
         for (size_t w_block = 0; w_block < num_w_blocks; w_block++) {
             data_[index(w_block, 0)] = Cell::kStone;

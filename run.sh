@@ -1,6 +1,9 @@
 function build(){
     echo "Building $1.cc..."
-    clang++ -o $1 -std=c++2a $1.cc -O3 -ferror-limit=1 -I/usr/local/include/eigen3/ -lglfw -lglew -framework OpenGL -DGL_SILENCE_DEPRECATION
+    clang++ -o $1 $1.cc \
+        -std=c++2a -O3 -ferror-limit=1 \
+        -I/usr/local/include/eigen3/ -Wdeprecated-anon-enum-enum-conversion \
+        -lglfw -lglew -framework OpenGL -DGL_SILENCE_DEPRECATION
 }
 
 if [ "$#" -eq 0 ]; then
