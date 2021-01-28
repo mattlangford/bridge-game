@@ -14,6 +14,8 @@
 
 #include "mesh.hh"
 
+#include <GLFW/glfw3.h>
+
 using DMatrix = Eigen::Matrix3f;
 using BMatrix = Eigen::Matrix<float, 3, 6>;
 
@@ -99,6 +101,12 @@ public:
 
         Eigen::MatrixXf M(vertex_count, vertex_count);
         M.setZero();
+        for (size_t i = 0; i < mesh_.mass.size(); ++i) {
+            const size_t index = vertex_to_u_[i];
+            if (index < U_.size()) {
+                M(index, index) = mesh_.mass[i];
+            }
+        }
 
         for (size_t i = 0; i < mesh_.triangles.size(); ++i) {
             // No processing needed if the triangle is fixed
@@ -128,22 +136,50 @@ public:
             }
         }
 
+        // [2] Table 9.3 A.5 (with C = 0)
+        K = K + kA0 * M;
+
+        // [2] Table 9.3 A.6
         Eigen::SimplicialLDLT<Eigen::SparseMatrix<float>> solver;
         solver.compute(K);
         if (solver.info() != Eigen::Success) {
             throw std::runtime_error("Decomposition Failed!");
         }
-        /*
-        x = solver.solve(b);
-        if (solver.info() != Success) {
+
+        // [2] Table 9.3 B.1 (again with C = 0)
+        Eigen::VectorXf R_hat = M * (kA0 * U_ + kA2 * U_vel_ + kA3 * U_accel_);
+
+        // [2] Table 9.3 B.2
+        Eigen::VectorXf U_next = solver.solve(R_hat);
+        if (solver.info() != Eigen::Success) {
             throw std::runtime_error("Solving Failed!");
         }
-        */
+
+        // [2] Table 9.3 B.3
+        Eigen::VectorXf U_accel_next = kA0 * (U_next - U_) - kA2 * U_vel_ - kA3 * U_accel_;
+        Eigen::VectorXf U_vel_next = U_vel_ + kA6 * U_accel_ + kA7 * U_accel_next;
+
+        // Now we can update our internal state!
+        U_ = std::move(U_next);
+        U_vel_ = std::move(U_vel_next);
+        U_accel_ = std::move(U_accel_next);
     }
 
     void draw() const
     {
-        draw_mesh(mesh_);
+        glBegin(GL_TRIANGLES);
+
+        Metadata last_metadata;
+        for (const Triangle& triangle : mesh_.triangles) {
+            const auto x = [&](uint8_t i) { return get_coordinate(triangle.indices[i]); };
+            const auto y = [&](uint8_t i) { return get_coordinate(triangle.indices[i] + 1); };
+
+            glVertex2f(x(0), y(0));
+            glVertex2f(x(1), y(1));
+            glVertex2f(x(2), y(2));
+        }
+
+        glEnd();
     }
 
     void set_mesh(Mesh mesh)
@@ -236,16 +272,17 @@ private:
     }
 
 private:
-    Mesh mesh_;
-
     // Displacements of the dynamic coordinates (along per-node velocity and accel)
     Eigen::VectorXf U_;
     Eigen::VectorXf U_vel_;
     Eigen::VectorXf U_accel_;
 
+    // Mesh we've been blessed with
+    Mesh mesh_;
+
     // Since we'll only generate displacements for non-fixed vertices, we'll need to store a mapping between mesh
     // vertices and displacement/velocity/accel vectors
-    std::vector<ssize_t> vertex_to_u_;
+    std::vector<size_t> vertex_to_u_;
 
     // Generated so we know which triangles are completely fixed
     std::vector<bool> fixed_triangles_;

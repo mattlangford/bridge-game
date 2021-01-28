@@ -83,29 +83,10 @@ void test_mesh()
     }
 }
 
-void test_mesh_area()
-{
-    MeshBuilder builder;
-
-    // These are the same triangles but with different node ordering, but with A = 0.5
-    builder.add_triangle({ 0, 0 }, { 1, 0 }, { 0, 1 });
-    builder.add_triangle({ 1, 0 }, { 0, 0 }, { 0, 1 });
-
-    // Checked with a calculator on the internet, A = 412.5
-    builder.add_triangle({ 5, 10 }, { 11, 1 }, { 100, 5 });
-
-    auto mesh = builder.finalize();
-    ASSERT_EQ(mesh.triangles.size(), 3);
-    EXPECT_EQ(area(mesh.triangles[0], mesh), 0.5);
-    EXPECT_EQ(area(mesh.triangles[1], mesh), 0.5);
-    EXPECT_EQ(area(mesh.triangles[2], mesh), 412.5);
-}
-
 int main(int argc, char* argv[])
 {
     std::unordered_map<std::string, std::function<void(void)>> tests;
     tests["mesh"] = &test_mesh;
-    tests["mesh_area"] = &test_mesh_area;
 
     if (argc == 2) {
         const std::string name = argv[1];

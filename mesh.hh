@@ -6,8 +6,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include <GLFW/glfw3.h>
-
 //
 // #############################################################################
 //
@@ -236,37 +234,3 @@ private:
     ///
     std::vector<BuildingTriangle> triangles_;
 };
-
-//
-// #############################################################################
-//
-
-void draw_mesh(const Mesh& mesh)
-{
-    glBegin(GL_TRIANGLES);
-
-    Metadata last_metadata;
-    for (const Triangle& triangle : mesh.triangles) {
-        const auto x = [&](uint8_t i) { return mesh.vertices[triangle.indices[i]]; };
-        const auto y = [&](uint8_t i) { return mesh.vertices[triangle.indices[i] + 1]; };
-
-        glVertex2f(x(0), y(0));
-        glVertex2f(x(1), y(1));
-        glVertex2f(x(2), y(2));
-    }
-
-    glEnd();
-}
-
-//
-// #############################################################################
-//
-
-float area(const Triangle& triangle, const Mesh& mesh)
-{
-    auto x = [&](size_t i) { return mesh.vertices[triangle.indices[i - 1]]; };
-    auto y = [&](size_t i) { return mesh.vertices[triangle.indices[i - 1] + 1]; };
-
-    // From [1] 4.70, I'm keeping the indices one-indexed like they do
-    return 0.5f * abs((x(1) - x(3)) * (y(2) - y(3)) - (y(1) - y(3)) * (x(2) - x(3)));
-}
