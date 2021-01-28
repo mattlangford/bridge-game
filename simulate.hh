@@ -28,7 +28,7 @@ static constexpr float kDt = 1.f / 60.f;
 DMatrix generate_D()
 {
     // As a proof of concept I'm just going to hardcode these
-    const float E = 3.7 * 1E3; // youngs modulus N/m^2 (for brick) - this is modified by a few orders of magnitude
+    const float E = 3.7 * 1E6; // youngs modulus N/m^2 (for brick) - this is modified by a few orders of magnitude
     const float v = 0.1; // poissons ratio (also for brick)
 
     // Comes from [1] 4.14
@@ -39,7 +39,7 @@ DMatrix generate_D()
          0.f, 0.f, 0.5f * (1.f - v);
     // clang-format on
 
-    return E / (1.f - (v * v)) * d;
+    return d * E / (1.f - (v * v));
 }
 
 //
@@ -130,8 +130,8 @@ public:
                     const auto& [local_row, local_col] = local;
                     const auto& [global_row, global_col] = global;
 
-                    // We get the global indices above, but since the K matrix only includes dynamic vertices we'll need to
-                    // convert one more time. If the global row/col map to a fixed vertex, we'll ignore this entry
+                    // We get the global indices above, but since the K matrix only includes dynamic vertices we'll
+                    // need to convert one more time. If the global row/col map to a fixed vertex, we'll ignore it
                     const size_t dynamic_row = vertex_to_u_[global_row];
                     const size_t dynamic_col = vertex_to_u_[global_col];
                     if (dynamic_row >= U_.size() || dynamic_col >= U_.size()) {
@@ -153,8 +153,13 @@ public:
             }
         }
 
+        Eigen::VectorXf gravity = Eigen::VectorXf::Zero(vertex_count);
+        for (size_t i = 1; i < vertex_count; i += 2) {
+            gravity[i] = -9.8 * M(i, i) * kDt;
+        }
+
         // [2] Table 9.3 B.1 (again with C = 0)
-        Eigen::VectorXf R_hat = M * (kA0 * U_ + kA2 * U_vel_ + kA3 * U_accel_);
+        Eigen::VectorXf R_hat = gravity + M * (kA0 * U_ + kA2 * U_vel_ + kA3 * U_accel_);
 
         // [2] Table 9.3 B.2
         Eigen::VectorXf U_next = K_solver_->solve(R_hat);
@@ -172,7 +177,6 @@ public:
         U_accel_ = std::move(U_accel_next);
 
         std::cout << "Last offsets: " << U_[U_.size() - 2] << ", " << U_[U_.size() - 1];
-        ;
         std::cout << " update took (us): " << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - start).count() << "\n";
     }
 
