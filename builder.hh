@@ -322,14 +322,17 @@ private:
 
     void generate_ridge()
     {
-        data_[500] = Cell::kStone;
-        return;
+        // data_[500] = Cell::kStone;
+        // return;
+
         // The bottom of the ridge
         for (size_t w_block = 0; w_block < num_w_blocks; w_block++) {
             data_[index(w_block, 0)] = Cell::kStone;
             data_[index(w_block, 1)] = Cell::kStone;
+            data_[index(w_block, num_h_blocks / 2)] = Cell::kBrick;
         }
 
+        // On the sides
         for (size_t h_block = 0; h_block < num_h_blocks / 2; h_block++) {
             data_[index(0, h_block)] = Cell::kStone;
             data_[index(1, h_block)] = Cell::kStone;

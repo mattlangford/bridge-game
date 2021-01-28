@@ -20,7 +20,7 @@
 using DMatrix = Eigen::Matrix3d;
 using BMatrix = Eigen::Matrix<double, 3, 6>;
 
-static constexpr double kDt = 1.0 / 100000.0;
+static constexpr double kDt = 1.0 / 500.0;
 
 //
 // #############################################################################
@@ -29,7 +29,7 @@ static constexpr double kDt = 1.0 / 100000.0;
 DMatrix generate_D()
 {
     // As a proof of concept I'm just going to hardcode these
-    const double E = 3.7 * 1E7; // youngs modulus N/m^2 (for brick) (slightly adjusted)
+    const double E = 3.7 * 1E5; // youngs modulus N/m^2 (for brick) (slightly adjusted)
     const double v = 0.1; // poissons ratio (also for brick)
 
     // Comes from [1] 4.14
@@ -93,8 +93,6 @@ public:
                          std::chrono::high_resolution_clock::now() - start)
                          .count()
                   << "us\n";
-
-        std::cout << "U: " << U_[7] << "\n";
     }
 
     void step()
@@ -129,7 +127,7 @@ public:
         // Generate arbitrary dampening matrix
         if (!damping_) {
             // Not really sure what this should be
-            constexpr double kDampingFactor = 0.1;
+            constexpr double kDampingFactor = 10.0;
             Eigen::MatrixXd& C = damping_.emplace(vertex_count, vertex_count);
             C.setZero();
             C.diagonal().fill(kDampingFactor);
@@ -204,14 +202,29 @@ public:
         U_ = std::move(U_next);
         U_vel_ = std::move(U_vel_next);
         U_accel_ = std::move(U_accel_next);
+
+        // To avoid numerical issues with things moving too quickly, we'll impose a max velocity
+        for (size_t i = 0; i < U_vel_.size(); ++i)
+        {
+            double& velocity = U_vel_[i];
+
+            constexpr double kTerminalVelocity = 30.0;
+            velocity = std::clamp(velocity, -kTerminalVelocity, kTerminalVelocity);
+        }
+    }
+
+    double compute_stress(const Triangle& triangle) const
+    {
+        Eigen::Vector<double, 6>
     }
 
     void draw() const
     {
         glBegin(GL_TRIANGLES);
-        glColor3f(0.5f, 0.5f, 0.5f);
 
         for (const Triangle& triangle : mesh_.triangles) {
+            glColor3f(0.5f, 0.5f, 0.5f);
+
             constexpr size_t kPixelSize = 10;
             const auto x = [&](uint8_t i) { return kPixelSize * get_coordinate(triangle.indices[i]); };
             const auto y = [&](uint8_t i) { return kPixelSize * get_coordinate(triangle.indices[i] + 1); };
