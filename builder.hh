@@ -165,7 +165,7 @@ public:
             for (const size_t this_index : indices) {
                 const Cell& cell = data_[this_index];
 
-                constexpr size_t kBlockSize = kPxSize; // meters
+                constexpr size_t kBlockSize = 1; // meters
 
                 Metadata metadata;
                 metadata.fixed = cell == Cell::kStone;

@@ -19,7 +19,7 @@
 using DMatrix = Eigen::Matrix3f;
 using BMatrix = Eigen::Matrix<float, 3, 6>;
 
-static constexpr float kDt = 1.f / 60.f;
+static constexpr float kDt = 1.f / 30.f;
 
 //
 // #############################################################################
@@ -28,7 +28,7 @@ static constexpr float kDt = 1.f / 60.f;
 DMatrix generate_D()
 {
     // As a proof of concept I'm just going to hardcode these
-    const float E = 3.7 * 1E10; // youngs modulus N/m^2 (for brick)
+    const float E = 3.7 * 1E7; // youngs modulus N/m^2 (for brick) (slightly adjusted)
     const float v = 0.1; // poissons ratio (also for brick)
 
     // Comes from [1] 4.14
@@ -111,7 +111,7 @@ public:
         // Generate arbitrary dampening matrix
         if (!damping_) {
             // Not really sure what this should be
-            constexpr float kDampingFactor = 0.1;
+            constexpr float kDampingFactor = 0.0;
             Eigen::MatrixXf& C = damping_.emplace(vertex_count, vertex_count);
             C.setZero();
             C.diagonal().fill(kDampingFactor);
@@ -168,7 +168,9 @@ public:
         }
 
         // [2] Table 9.3 B.1
-        Eigen::VectorXf R_hat = gravity + M * (kA0 * U_ + kA2 * U_vel_ + kA3 * U_accel_) + C * (kA1 * U_ + kA4 * U_vel_ + kA5 * U_accel_);
+        Eigen::VectorXf R_hat = gravity
+            + M * (kA0 * U_ + kA2 * U_vel_ + kA3 * U_accel_)
+            + C * (kA1 * U_ + kA4 * U_vel_ + kA5 * U_accel_);
 
         // [2] Table 9.3 B.2
         Eigen::VectorXf U_next = K_solver_->solve(R_hat);
@@ -196,8 +198,9 @@ public:
         glColor3f(0.5f, 0.5f, 0.5f);
 
         for (const Triangle& triangle : mesh_.triangles) {
-            const auto x = [&](uint8_t i) { return get_coordinate(triangle.indices[i]); };
-            const auto y = [&](uint8_t i) { return get_coordinate(triangle.indices[i] + 1); };
+            constexpr size_t kPixelSize = 10;
+            const auto x = [&](uint8_t i) { return kPixelSize * get_coordinate(triangle.indices[i]); };
+            const auto y = [&](uint8_t i) { return kPixelSize * get_coordinate(triangle.indices[i] + 1); };
 
             glVertex2f(x(0), y(0));
             glVertex2f(x(1), y(1));
