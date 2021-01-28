@@ -5,7 +5,7 @@ np.set_printoptions(edgeitems=10, linewidth=100000)
 
 E = 30 * 10E6
 v = 0.25
-m = 1000
+m = 100
 
 # Relates stress to strain
 D = np.array([
@@ -49,7 +49,7 @@ f = np.array([
     0, 0,
     0, 0,
 ])
-g = 9.8 * dt * m
+g = 9.8 * m
 f[1::2] = -g
 print (f)
 
@@ -62,7 +62,7 @@ triangles = [
 u = np.zeros_like(coords, dtype=np.float64)
 u_dot = np.zeros_like(u)
 u_dot_dot = np.zeros_like(u)
-u_dot_dot[1::2] = -g
+u_dot_dot[1::2] = -9.8
 
 def area(triangle):
     displacements = coords[triangle] + u[triangle]

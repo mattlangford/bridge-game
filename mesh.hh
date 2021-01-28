@@ -21,16 +21,6 @@ struct Connection {
 // #############################################################################
 //
 
-struct Metadata {
-    bool fixed;
-    float mass;
-    auto operator<=>(const Metadata&) const = default;
-};
-
-//
-// #############################################################################
-//
-
 struct Triangle {
     static constexpr size_t kDim = 3;
 
@@ -43,11 +33,6 @@ struct Triangle {
     /// External connections to other triangles for each vertex
     ///
     std::array<std::vector<Connection>, kDim> connections;
-
-    ///
-    /// Generic metadata that helps with rendering or simulating the mesh
-    ///
-    Metadata metadata;
 };
 
 //
@@ -64,6 +49,26 @@ struct Mesh {
     /// Groups vertices into triangles. Since the vertices vector is flat, this will only connect the first coordinates.
     ///
     std::vector<Triangle> triangles;
+
+    ///
+    /// Stores if the vertex at the same index is fixed or not. Fixed vertices always have zeroed offsets in physics
+    ///
+    std::vector<bool> fixed;
+
+    ///
+    /// Stores each vertex's mass (in kg/m3)
+    ///
+    std::vector<float> mass;
+};
+
+//
+// #############################################################################
+//
+
+struct Metadata {
+    bool fixed = false;
+    float mass = 1.0f;
+    auto operator<=>(const Metadata&) const = default;
 };
 
 //
@@ -101,9 +106,13 @@ public:
         Mesh mesh;
         mesh.vertices.reserve(3 * triangles_.size());
         mesh.triangles.reserve(triangles_.size());
+        mesh.fixed.reserve(triangles_.size());
+        mesh.mass.reserve(triangles_.size());
 
         populate_triangles(mesh);
         populate_connections(mesh);
+        populate_fixed(mesh);
+        populate_mass(mesh);
 
         return mesh;
     }
@@ -118,7 +127,6 @@ private:
         for (const BuildingTriangle& triangle : triangles_) {
             auto& mesh_triangle = mesh.triangles.emplace_back();
 
-            mesh_triangle.metadata = triangle.metadata;
             for (size_t i = 0; i < triangle.coords.size(); ++i) {
                 const Coordinate2d& coord = triangle.coords[i];
                 const size_t next_vertex_index = mesh.vertices.size();
@@ -181,6 +189,37 @@ private:
         }
     }
 
+    void populate_fixed(Mesh& mesh) const
+    {
+        mesh.fixed.resize(mesh.vertices.size(), false);
+        for (size_t i = 0; i < triangles_.size(); ++i) {
+            const auto& metadata = triangles_[i].metadata;
+            if (!metadata.fixed) {
+                continue;
+            }
+
+            for (size_t index : mesh.triangles[i].indices) {
+                mesh.fixed[index] = true; // x
+                mesh.fixed[index + 1] = true; // y
+            }
+        }
+    }
+
+    void populate_mass(Mesh& mesh) const
+    {
+        mesh.mass.resize(mesh.vertices.size(), 0.0);
+
+        // Naively split the mass between each vertex. NOTE there are 6 vertices per triangle (x1, y1, x2, y2, x3, y3)
+        // This could probably be improved by integrating over the area of the triangles.
+        for (size_t i = 0; i < triangles_.size(); ++i) {
+            const auto sixth_mass = triangles_[i].metadata.mass / 6.0;
+            for (size_t index : mesh.triangles[i].indices) {
+                mesh.mass[index] = sixth_mass;
+                mesh.mass[index + 1] = sixth_mass;
+            }
+        }
+    }
+
 private:
     struct Coordinate2dHash {
         size_t operator()(Coordinate2d input) const
@@ -208,13 +247,6 @@ void draw_mesh(const Mesh& mesh)
 
     Metadata last_metadata;
     for (const Triangle& triangle : mesh.triangles) {
-        // Configure the color if we've changed the type of triangle we're rendering
-        if (triangle.metadata != last_metadata) {
-            float color = std::fmod(triangle.metadata.mass, 1.0);
-            glColor3f(color, color, color);
-        }
-        last_metadata = triangle.metadata;
-
         const auto x = [&](uint8_t i) { return mesh.vertices[triangle.indices[i]]; };
         const auto y = [&](uint8_t i) { return mesh.vertices[triangle.indices[i] + 1]; };
 
