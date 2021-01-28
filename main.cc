@@ -110,7 +110,7 @@ int main(int argc, char* argv[])
             break;
         }
         case EventState::kSimulate: {
-            simulator.step();
+            simulator.step(1 / 60.f);
             simulator.draw();
             break;
         }

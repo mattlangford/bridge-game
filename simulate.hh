@@ -8,6 +8,7 @@
 #include <Eigen/Sparse>
 
 #include <chrono>
+#include <iomanip>
 #include <iostream>
 #include <optional>
 #include <vector>
@@ -16,10 +17,10 @@
 
 #include <GLFW/glfw3.h>
 
-using DMatrix = Eigen::Matrix3f;
-using BMatrix = Eigen::Matrix<float, 3, 6>;
+using DMatrix = Eigen::Matrix3d;
+using BMatrix = Eigen::Matrix<double, 3, 6>;
 
-static constexpr float kDt = 1.f / 30.f;
+static constexpr double kDt = 1.0 / 100000.0;
 
 //
 // #############################################################################
@@ -28,18 +29,18 @@ static constexpr float kDt = 1.f / 30.f;
 DMatrix generate_D()
 {
     // As a proof of concept I'm just going to hardcode these
-    const float E = 3.7 * 1E7; // youngs modulus N/m^2 (for brick) (slightly adjusted)
-    const float v = 0.1; // poissons ratio (also for brick)
+    const double E = 3.7 * 1E7; // youngs modulus N/m^2 (for brick) (slightly adjusted)
+    const double v = 0.1; // poissons ratio (also for brick)
 
     // Comes from [1] 4.14
-    Eigen::Matrix3f d;
+    Eigen::Matrix3d d;
     // clang-format off
-    d << 1.f,   v, 0.f,
-           v, 1.f, 0.f,
-         0.f, 0.f, 0.5f * (1.f - v);
+    d << 1.0,   v, 0.0,
+           v, 1.0, 0.0,
+         0.0, 0.0, 0.5f * (1.0 - v);
     // clang-format on
 
-    return d * E / (1.f - (v * v));
+    return d * E / (1 - (v * v));
 }
 
 //
@@ -79,25 +80,42 @@ std::vector<LocalToGlobalMapping> generate_local_to_global_mapping(const Triangl
 
 class Simlator {
 public:
+    void step(const double dt)
+    {
+        const auto start = std::chrono::high_resolution_clock::now();
+        const size_t num_steps = dt / kDt;
+        for (size_t i = 0; i < num_steps; ++i) {
+            step();
+        }
+
+        std::cout << "Performed " << num_steps << " steps in "
+                  << std::chrono::duration_cast<std::chrono::microseconds>(
+                         std::chrono::high_resolution_clock::now() - start)
+                         .count()
+                  << "us\n";
+
+        std::cout << "U: " << U_[7] << "\n";
+    }
+
     void step()
     {
         const size_t vertex_count = U_.size();
 
         // From [2] Table 9.3 A.4, we'll define some constants to help out later
-        constexpr float kAlpha = 0.5f;
-        constexpr float kBeta = 0.25f * (0.5f + kAlpha) * (0.5f + kAlpha);
-        constexpr float kA0 = 1.0f / (kBeta * kDt * kDt);
-        constexpr float kA1 = kAlpha / (kBeta * kDt);
-        constexpr float kA2 = 1.0f / (kBeta * kDt);
-        constexpr float kA3 = 1.0f / (2.0f * kBeta) - 1.0f;
-        constexpr float kA4 = kAlpha / kBeta - 1.0f;
-        constexpr float kA5 = (kDt / 2.0f) * (kAlpha / kBeta - 2.0f);
-        constexpr float kA6 = kDt * (1.0f - kAlpha);
-        constexpr float kA7 = kDt * kAlpha;
+        constexpr double kAlpha = 0.5f;
+        constexpr double kBeta = 0.25f * (0.5f + kAlpha) * (0.5f + kAlpha);
+        constexpr double kA0 = 1.0f / (kBeta * kDt * kDt);
+        constexpr double kA1 = kAlpha / (kBeta * kDt);
+        constexpr double kA2 = 1.0f / (kBeta * kDt);
+        constexpr double kA3 = 1.0f / (2.0f * kBeta) - 1.0f;
+        constexpr double kA4 = kAlpha / kBeta - 1.0f;
+        constexpr double kA5 = (kDt / 2.0f) * (kAlpha / kBeta - 2.0f);
+        constexpr double kA6 = kDt * (1.0f - kAlpha);
+        constexpr double kA7 = kDt * kAlpha;
 
         // Generate the mass matrix
         if (!mass_) {
-            Eigen::MatrixXf& M = mass_.emplace(vertex_count, vertex_count);
+            Eigen::MatrixXd& M = mass_.emplace(vertex_count, vertex_count);
             M.setZero();
             for (size_t i = 0; i < mesh_.mass.size(); ++i) {
                 const size_t index = vertex_to_u_[i];
@@ -106,21 +124,21 @@ public:
                 }
             }
         }
-        Eigen::MatrixXf& M = *mass_;
+        Eigen::MatrixXd& M = *mass_;
 
         // Generate arbitrary dampening matrix
         if (!damping_) {
             // Not really sure what this should be
-            constexpr float kDampingFactor = 0.0;
-            Eigen::MatrixXf& C = damping_.emplace(vertex_count, vertex_count);
+            constexpr double kDampingFactor = 0.1;
+            Eigen::MatrixXd& C = damping_.emplace(vertex_count, vertex_count);
             C.setZero();
             C.diagonal().fill(kDampingFactor);
         }
-        Eigen::MatrixXf& C = *damping_;
+        Eigen::MatrixXd& C = *damping_;
 
         if (!K_solver_) {
             // Generate the global stiffness matrix
-            Eigen::SparseMatrix<float> K(vertex_count, vertex_count);
+            Eigen::SparseMatrix<double> K(vertex_count, vertex_count);
             K.setZero();
             K.reserve(6 * 6 * vertex_count);
             for (size_t i = 0; i < mesh_.triangles.size(); ++i) {
@@ -130,10 +148,10 @@ public:
 
                 auto& triangle = mesh_.triangles[i];
 
-                static constexpr float kThickness = 1; // meters
+                static constexpr double kThickness = 1; // meters
 
                 const BMatrix B = generate_B(triangle);
-                Eigen::Matrix<float, 6, 6> k = kThickness * area(triangle) * B.transpose() * generate_D() * B;
+                Eigen::Matrix<double, 6, 6> k = kThickness * area(triangle) * B.transpose() * generate_D() * B;
 
                 for (const auto& [local, global] : generate_local_to_global_mapping(triangle)) {
                     const auto& [local_row, local_col] = local;
@@ -162,34 +180,30 @@ public:
             }
         }
 
-        Eigen::VectorXf gravity = Eigen::VectorXf::Zero(vertex_count);
+        Eigen::VectorXd gravity = Eigen::VectorXd::Zero(vertex_count);
         for (size_t i = 1; i < vertex_count; i += 2) {
-            gravity[i] = -9.8 * M(i, i) * kDt;
+            gravity[i] = -9.8 * M(i, i);
         }
 
         // [2] Table 9.3 B.1
-        Eigen::VectorXf R_hat = gravity
+        Eigen::VectorXd R_hat = gravity
             + M * (kA0 * U_ + kA2 * U_vel_ + kA3 * U_accel_)
             + C * (kA1 * U_ + kA4 * U_vel_ + kA5 * U_accel_);
 
         // [2] Table 9.3 B.2
-        Eigen::VectorXf U_next = K_solver_->solve(R_hat);
+        Eigen::VectorXd U_next = K_solver_->solve(R_hat);
         if (K_solver_->info() != Eigen::Success) {
             throw std::runtime_error("Solving Failed!");
         }
 
         // [2] Table 9.3 B.3
-        Eigen::VectorXf U_accel_next = kA0 * (U_next - U_) - kA2 * U_vel_ - kA3 * U_accel_;
-        Eigen::VectorXf U_vel_next = U_vel_ + kA6 * U_accel_ + kA7 * U_accel_next;
+        Eigen::VectorXd U_accel_next = kA0 * (U_next - U_) - kA2 * U_vel_ - kA3 * U_accel_;
+        Eigen::VectorXd U_vel_next = U_vel_ + kA6 * U_accel_ + kA7 * U_accel_next;
 
         // Now we can update our internal state!
         U_ = std::move(U_next);
         U_vel_ = std::move(U_vel_next);
         U_accel_ = std::move(U_accel_next);
-
-        std::cout << "Last offsets: " << U_[U_.size() - 2] << ", " << U_[U_.size() - 1] << "\n";
-        // std::cout << " Last vel: " << U_vel_[U_.size() - 2] << ", " << U_vel_[U_.size() - 1];
-        // std::cout << " Last accel: " << U_accel_[U_.size() - 2] << ", " << U_accel_[U_.size() - 1] << "\n";
     }
 
     void draw() const
@@ -226,9 +240,9 @@ public:
             num_dynamic++;
         }
 
-        U_ = Eigen::VectorXf::Zero(num_dynamic);
-        U_vel_ = Eigen::VectorXf::Zero(num_dynamic);
-        U_accel_ = Eigen::VectorXf::Zero(num_dynamic);
+        U_ = Eigen::VectorXd::Zero(num_dynamic);
+        U_vel_ = Eigen::VectorXd::Zero(num_dynamic);
+        U_accel_ = Eigen::VectorXd::Zero(num_dynamic);
 
         // Apply gravity (only to the Y coordinates)
         for (size_t i = 1; i < U_accel_.size(); i += 2) {
@@ -241,7 +255,7 @@ public:
             bool fixed = true;
 
             for (size_t index : triangle.indices) {
-                if (!mesh_.fixed[index]) {
+                if (!mesh_ .fixed [index]) {
                     // At least one index isn't fixed!
                     fixed = false;
                     break;
@@ -257,10 +271,10 @@ public:
     }
 
 private:
-    float get_coordinate(size_t index) const
+    double get_coordinate(size_t index) const
     {
         const size_t u_index = vertex_to_u_[index];
-        const float displacement = u_index >= U_.size() ? 0.0f : U_[u_index];
+        const double displacement = u_index >= U_.size() ? 0.0f : U_[u_index];
         return mesh_.vertices[index] + displacement;
     }
 
@@ -276,18 +290,18 @@ private:
             return get_coordinate(triangle.indices[i - 1] + 1) - get_coordinate(triangle.indices[j - 1] + 1);
         };
 
-        const float det_j = x(1, 3) * y(2, 3) - y(1, 3) * x(2, 3);
+        const double det_j = x(1, 3) * y(2, 3) - y(1, 3) * x(2, 3);
 
         BMatrix b;
         // clang-format off
-        b << y(2, 3),     0.f, y(3, 1),     0.f, y(1, 2),     0.f,
-                 0.f, x(3, 2),     0.f, x(1, 3),     0.f, x(2, 1),
+        b << y(2, 3),     0.0, y(3, 1),     0.0, y(1, 2),     0.0,
+                 0.0, x(3, 2),     0.0, x(1, 3),     0.0, x(2, 1),
              x(3, 2), y(2, 3), x(1, 3), y(3, 1), x(2, 1), y(1, 2);
         // clang-format on
         return b / det_j;
     }
 
-    float area(const Triangle& triangle) const
+    double area(const Triangle& triangle) const
     {
         auto x = [&](size_t i, size_t j) {
             // we need to subtract one to get the indexing to match [1]
@@ -305,16 +319,16 @@ private:
 
 private:
     // Displacements of the dynamic coordinates (along per-node velocity and accel)
-    Eigen::VectorXf U_;
-    Eigen::VectorXf U_vel_;
-    Eigen::VectorXf U_accel_;
+    Eigen::VectorXd U_;
+    Eigen::VectorXd U_vel_;
+    Eigen::VectorXd U_accel_;
 
     // Mesh we've been blessed with
     Mesh mesh_;
 
-    std::optional<Eigen::SimplicialLDLT<Eigen::SparseMatrix<float>>> K_solver_;
-    std::optional<Eigen::MatrixXf> mass_;
-    std::optional<Eigen::MatrixXf> damping_;
+    std::optional<Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>>> K_solver_;
+    std::optional<Eigen::MatrixXd> mass_;
+    std::optional<Eigen::MatrixXd> damping_;
 
     // Since we'll only generate displacements for non-fixed vertices, we'll need to store a mapping between mesh
     // vertices and displacement/velocity/accel vectors
