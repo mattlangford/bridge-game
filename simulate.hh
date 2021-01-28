@@ -28,7 +28,7 @@ static constexpr float kDt = 1.f / 60.f;
 DMatrix generate_D()
 {
     // As a proof of concept I'm just going to hardcode these
-    const float E = 3.7 * 1E6; // youngs modulus N/m^2 (for brick) - this is modified by a few orders of magnitude
+    const float E = 3.7 * 1E10; // youngs modulus N/m^2 (for brick)
     const float v = 0.1; // poissons ratio (also for brick)
 
     // Comes from [1] 4.14
@@ -81,7 +81,6 @@ class Simlator {
 public:
     void step()
     {
-        const auto start = std::chrono::high_resolution_clock::now();
         const size_t vertex_count = U_.size();
 
         // From [2] Table 9.3 A.4, we'll define some constants to help out later
@@ -108,6 +107,16 @@ public:
             }
         }
         Eigen::MatrixXf& M = *mass_;
+
+        // Generate arbitrary dampening matrix
+        if (!damping_) {
+            // Not really sure what this should be
+            constexpr float kDampingFactor = 0.1;
+            Eigen::MatrixXf& C = damping_.emplace(vertex_count, vertex_count);
+            C.setZero();
+            C.diagonal().fill(kDampingFactor);
+        }
+        Eigen::MatrixXf& C = *damping_;
 
         if (!K_solver_) {
             // Generate the global stiffness matrix
@@ -142,8 +151,8 @@ public:
                 }
             }
 
-            // [2] Table 9.3 A.5 (with C = 0)
-            K = K + kA0 * M;
+            // [2] Table 9.3 A.5
+            K = K + kA0 * M + kA1 * C;
 
             // [2] Table 9.3 A.6
             K_solver_.emplace();
@@ -158,8 +167,8 @@ public:
             gravity[i] = -9.8 * M(i, i) * kDt;
         }
 
-        // [2] Table 9.3 B.1 (again with C = 0)
-        Eigen::VectorXf R_hat = gravity + M * (kA0 * U_ + kA2 * U_vel_ + kA3 * U_accel_);
+        // [2] Table 9.3 B.1
+        Eigen::VectorXf R_hat = gravity + M * (kA0 * U_ + kA2 * U_vel_ + kA3 * U_accel_) + C * (kA1 * U_ + kA4 * U_vel_ + kA5 * U_accel_);
 
         // [2] Table 9.3 B.2
         Eigen::VectorXf U_next = K_solver_->solve(R_hat);
@@ -176,8 +185,9 @@ public:
         U_vel_ = std::move(U_vel_next);
         U_accel_ = std::move(U_accel_next);
 
-        std::cout << "Last offsets: " << U_[U_.size() - 2] << ", " << U_[U_.size() - 1];
-        std::cout << " update took (us): " << std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - start).count() << "\n";
+        std::cout << "Last offsets: " << U_[U_.size() - 2] << ", " << U_[U_.size() - 1] << "\n";
+        // std::cout << " Last vel: " << U_vel_[U_.size() - 2] << ", " << U_vel_[U_.size() - 1];
+        // std::cout << " Last accel: " << U_accel_[U_.size() - 2] << ", " << U_accel_[U_.size() - 1] << "\n";
     }
 
     void draw() const
@@ -240,6 +250,7 @@ public:
 
         K_solver_ = std::nullopt;
         mass_ = std::nullopt;
+        damping_ = std::nullopt;
     }
 
 private:
@@ -300,6 +311,7 @@ private:
 
     std::optional<Eigen::SimplicialLDLT<Eigen::SparseMatrix<float>>> K_solver_;
     std::optional<Eigen::MatrixXf> mass_;
+    std::optional<Eigen::MatrixXf> damping_;
 
     // Since we'll only generate displacements for non-fixed vertices, we'll need to store a mapping between mesh
     // vertices and displacement/velocity/accel vectors

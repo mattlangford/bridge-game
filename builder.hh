@@ -39,7 +39,7 @@ double get_mass_from_cell(const Cell& c)
     switch (c) {
     case Cell::kBrick:
         // Assume 50 bricks per m^3 and 3.1kg per brick
-        return 50.0 * 3.1 * 1E3;
+        return 50.0 * 3.1;
     case Cell::kStone:
         return 0.9;
     case Cell::kRoad:
@@ -165,13 +165,16 @@ public:
             for (const size_t this_index : indices) {
                 const Cell& cell = data_[this_index];
 
+                constexpr size_t kBlockSize = kPxSize; // meters
+
                 Metadata metadata;
                 metadata.fixed = cell == Cell::kStone;
-                metadata.mass = get_mass_from_cell(cell);
+
+                constexpr float kVolume = kBlockSize * kBlockSize / 2.0;
+                metadata.mass = kVolume * get_mass_from_cell(cell);
 
                 const auto [w_block, h_block] = reverse_index(this_index);
 
-                constexpr size_t kBlockSize = kPxSize; // meters
                 const uint16_t w_m = w_block * kBlockSize;
                 const uint16_t h_m = h_block * kBlockSize;
 
