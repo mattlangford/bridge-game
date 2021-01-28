@@ -204,8 +204,7 @@ public:
         U_accel_ = std::move(U_accel_next);
 
         // To avoid numerical issues with things moving too quickly, we'll impose a max velocity
-        for (size_t i = 0; i < U_vel_.size(); ++i)
-        {
+        for (size_t i = 0; i < U_vel_.size(); ++i) {
             double& velocity = U_vel_[i];
 
             constexpr double kTerminalVelocity = 30.0;
@@ -215,15 +214,33 @@ public:
 
     double compute_stress(const Triangle& triangle) const
     {
-        Eigen::Vector<double, 6>
+        Eigen::Matrix<double, 6, 1> displacements;
+        for (size_t i = 0; i < triangle.indices.size(); ++i) {
+            displacements[2 * i] = get_displacement(triangle.indices[i]);
+            displacements[2 * i + 1] = get_displacement(triangle.indices[i] + 1);
+        }
+
+        Eigen::Vector3d stresses = generate_D() * generate_B(triangle) * displacements;
+        return stresses.norm();
     }
 
     void draw() const
     {
         glBegin(GL_TRIANGLES);
 
-        for (const Triangle& triangle : mesh_.triangles) {
-            glColor3f(0.5f, 0.5f, 0.5f);
+        for (size_t i = 0; i < mesh_.triangles.size(); ++i) {
+            const Triangle& triangle = mesh_.triangles[i];
+
+            if (fixed_triangles_[i]) {
+                glColor3f(0.f, 0.f, 1.f);
+            } else {
+                constexpr double kMaxStress = 10000;
+                const double stress = compute_stress(triangle);
+
+                float red = static_cast<float>(stress / kMaxStress); // 0 when stress is 0, 1 when stress is high
+                float green = static_cast<float>((kMaxStress - stress) / kMaxStress); // 1 when stress is 0, 0 when stress is high
+                glColor3f(std::clamp(red, 0.f, 1.f), std::clamp(green, 0.f, 1.f), 0.0f);
+            }
 
             constexpr size_t kPixelSize = 10;
             const auto x = [&](uint8_t i) { return kPixelSize * get_coordinate(triangle.indices[i]); };
@@ -268,7 +285,7 @@ public:
             bool fixed = true;
 
             for (size_t index : triangle.indices) {
-                if (!mesh_ .fixed [index]) {
+                if (!mesh_.fixed[index]) {
                     // At least one index isn't fixed!
                     fixed = false;
                     break;
@@ -284,11 +301,14 @@ public:
     }
 
 private:
-    double get_coordinate(size_t index) const
+    double get_displacement(size_t index) const
     {
         const size_t u_index = vertex_to_u_[index];
-        const double displacement = u_index >= U_.size() ? 0.0f : U_[u_index];
-        return mesh_.vertices[index] + displacement;
+        return u_index >= U_.size() ? 0.0f : U_[u_index];
+    }
+    double get_coordinate(size_t index) const
+    {
+        return mesh_.vertices[index] + get_displacement(index);
     }
 
     BMatrix generate_B(const Triangle& triangle) const

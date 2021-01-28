@@ -69,7 +69,7 @@ int main(int argc, char* argv[])
     init_view();
 
     Builder builder;
-    Simlator simulator;
+    std::unique_ptr<Simlator> simulator = std::make_unique<Simlator>();
 
     // Set up all the callbacks, note that some of these capture by reference but since the EventHandler outlives
     // everything in the main function, this should be fine.
@@ -88,7 +88,9 @@ int main(int argc, char* argv[])
         }
     });
     handler.add_state_callback(EventState::kSimulate, [&](EventState) {
-        simulator.set_mesh(builder.generate_mesh());
+        // simulator.set_mesh(builder.generate_mesh());
+        simulator = std::make_unique<Simlator>();
+        simulator->set_mesh(builder.generate_mesh());
     });
     builder.setup_callbacks(handler);
 
@@ -110,8 +112,8 @@ int main(int argc, char* argv[])
             break;
         }
         case EventState::kSimulate: {
-            simulator.step(1 / 60.f);
-            simulator.draw();
+            simulator->step(1 / 60.f);
+            simulator->draw();
             break;
         }
         default:
