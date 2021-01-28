@@ -39,7 +39,7 @@ double get_mass_from_cell(const Cell& c)
     switch (c) {
     case Cell::kBrick:
         // Assume 50 bricks per m^3 and 3.1kg per brick
-        return 50.0 * 3.1;
+        return 50.0 * 3.1 * 1E3;
     case Cell::kStone:
         return 0.9;
     case Cell::kRoad:
@@ -87,7 +87,7 @@ public:
             drawing_cell_ = Cell::kRoad;
             data_[index(0, 0)] = drawing_cell_;
         });
-        data_[index(0, 0)] = drawing_cell_;
+        // data_[index(0, 0)] = drawing_cell_;
 
         // Update cursor zoom
         handler.add(EventState::kBuild).key(GLFW_KEY_Z, [this](GLFWwindow*, int) {
@@ -171,7 +171,7 @@ public:
 
                 const auto [w_block, h_block] = reverse_index(this_index);
 
-                constexpr size_t kBlockSize = 1; // meters
+                constexpr size_t kBlockSize = kPxSize; // meters
                 const uint16_t w_m = w_block * kBlockSize;
                 const uint16_t h_m = h_block * kBlockSize;
 
