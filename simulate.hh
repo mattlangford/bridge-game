@@ -164,8 +164,6 @@ struct TriangleStressHelpers {
 
     std::vector<LocalToGlobalKMatrixMapping> generate_local_to_global_mapping() const
     {
-        const size_t num_displacements = context.state.displacements.size();
-
         std::vector<LocalToGlobalKMatrixMapping> mapping;
         mapping.reserve(6 * 6);
 

@@ -1,4 +1,5 @@
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository", "new_git_repository")
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 git_repository(
     name = "gtest",
@@ -15,4 +16,13 @@ new_git_repository(
     build_file = "@//:glfw.BUILD",
     # If I don't include this it gives warnings
     shallow_since = "1551813720 +0100",
+)
+
+http_archive(
+    name = "eigen",
+    #build_file = "//third_party:eigen.BUILD",
+    url = "https://gitlab.com/libeigen/eigen/-/archive/3.3.9/eigen-3.3.9.tar.gz",
+    sha256 = "7985975b787340124786f092b3a07d594b2e9cd53bbfe5f3d9b1daee7d55f56f",
+    build_file = "@//:eigen.BUILD",
+    strip_prefix="eigen-3.3.9"
 )

@@ -4,7 +4,7 @@
 #include <unordered_set>
 #include <variant>
 
-class GLFWwindow;
+struct GLFWwindow;
 
 enum class EventState {
     kInit = 0,
@@ -247,8 +247,6 @@ public:
             is_holding_ = false;
             return;
         }
-
-        const bool double_click = (Clock::now() - last_mouse_click_) <= kDoubleClick;
 
         for (const auto& handler : handlers_[state_]) {
             if (handler.type != detail::Type::kAny) {

@@ -3,7 +3,6 @@ cc_binary(
     srcs = ["main.cc"],
     deps = [
         ":engine",
-        "@glfw//:glfw",
     ]
 )
 
@@ -11,7 +10,11 @@ cc_library(
     name = "engine",
     hdrs = glob(["*.hh"]),
     visibility = ["//visibility:public"],
-    deps = [],
+    deps = [
+        "@glfw//:glfw",
+        "@eigen//:eigen",
+    ],
+    defines = ["GL_SILENCE_DEPRECATION"],
 )
 
 cc_test(
