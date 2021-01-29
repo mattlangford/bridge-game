@@ -115,7 +115,7 @@ public:
         });
 
         // Draw
-        handler.add(EventState::kBuild).left_click([this](GLFWwindow*) {
+        handler.add(EventState::kBuild).any_modifier().left_click([this](GLFWwindow*) {
             set_cell_at_mouse_block(erase_mode_ ? Cell::kNone : drawing_cell_);
         });
         handler.add(EventState::kBuild).hold().any_modifier().move([this](GLFWwindow*, double xpos, double ypos) {

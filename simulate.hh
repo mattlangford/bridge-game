@@ -20,8 +20,7 @@
 
 using DMatrix = Eigen::Matrix3d;
 using BMatrix = Eigen::Matrix<double, 3, 6>;
-
-static constexpr double kDt = 1.0 / 500.0;
+using KMatrix = Eigen::SparseMatrix<double>;
 
 //
 // #############################################################################
@@ -113,6 +112,20 @@ Eigen::MatrixXd generate_damping_matrix(size_t vertex_count)
 //
 
 class Simlator {
+private:
+    // From [2] Table 9.3 A.4, we'll define some constants to help out later
+    static constexpr double kDt = 1.0 / 500.0;
+    static constexpr double kAlpha = 0.5f;
+    static constexpr double kBeta = 0.25f * (0.5f + kAlpha) * (0.5f + kAlpha);
+    static constexpr double kA0 = 1.0f / (kBeta * kDt * kDt);
+    static constexpr double kA1 = kAlpha / (kBeta * kDt);
+    static constexpr double kA2 = 1.0f / (kBeta * kDt);
+    static constexpr double kA3 = 1.0f / (2.0f * kBeta) - 1.0f;
+    static constexpr double kA4 = kAlpha / kBeta - 1.0f;
+    static constexpr double kA5 = (kDt / 2.0f) * (kAlpha / kBeta - 2.0f);
+    static constexpr double kA6 = kDt * (1.0f - kAlpha);
+    static constexpr double kA7 = kDt * kAlpha;
+
 public:
     void step(const double dt)
     {
@@ -129,77 +142,56 @@ public:
                   << "us\n";
     }
 
+    KMatrix generate_global_stiffness_matrix() const
+    {
+        const size_t num_displacements = U_.size();
+
+        // Generate the global stiffness matrix
+        KMatrix K(num_displacements, num_displacements);
+
+        // Each node can have up to 6 connections, this means we'll have at most a 6x6 matrix for each displacement
+        K.reserve(6 * 6 * num_displacements);
+        K.setZero();
+
+        for (size_t i = 0; i < mesh_.triangles.size(); ++i) {
+            // No processing needed if the triangle is fixed
+            if (fixed_triangles_[i])
+                continue;
+
+            auto& triangle = mesh_.triangles[i];
+
+            static constexpr double kThickness = 20; // meters
+
+            const BMatrix B = generate_B(triangle);
+            Eigen::Matrix<double, 6, 6> k = kThickness * area(triangle) * B.transpose() * generate_D() * B;
+
+            for (const auto& [local, global] : generate_local_to_global_mapping(triangle)) {
+                const auto& [local_row, local_col] = local;
+                const auto& [global_row, global_col] = global;
+
+                // We get the global indices above, but since the K matrix only includes dynamic vertices we'll
+                // need to convert one more time. If the global row/col map to a fixed vertex, we'll ignore it
+                const size_t dynamic_row = vertex_to_u_[global_row];
+                const size_t dynamic_col = vertex_to_u_[global_col];
+                if (dynamic_row >= U_.size() || dynamic_col >= U_.size()) {
+                    continue;
+                }
+
+                K.coeffRef(dynamic_row, dynamic_col) += k(local_row, local_col);
+            }
+        }
+
+        // [2] Table 9.3 A.5
+        K = K + kA0 * mass_ + kA1 * damping_;
+        return K;
+    }
+
     void step()
     {
         const size_t num_displacements = U_.size();
 
-        // From [2] Table 9.3 A.4, we'll define some constants to help out later
-        constexpr double kAlpha = 0.5f;
-        constexpr double kBeta = 0.25f * (0.5f + kAlpha) * (0.5f + kAlpha);
-        constexpr double kA0 = 1.0f / (kBeta * kDt * kDt);
-        constexpr double kA1 = kAlpha / (kBeta * kDt);
-        constexpr double kA2 = 1.0f / (kBeta * kDt);
-        constexpr double kA3 = 1.0f / (2.0f * kBeta) - 1.0f;
-        constexpr double kA4 = kAlpha / kBeta - 1.0f;
-        constexpr double kA5 = (kDt / 2.0f) * (kAlpha / kBeta - 2.0f);
-        constexpr double kA6 = kDt * (1.0f - kAlpha);
-        constexpr double kA7 = kDt * kAlpha;
-
-        // Generate the mass matrix
-        if (!mass_) {
-            mass_.emplace(generate_mass_matrix(num_displacements, vertex_to_u_, mesh_.mass));
-        }
-        Eigen::MatrixXd& M = *mass_;
-
-        // Generate arbitrary dampening matrix
-        if (!damping_) {
-            damping_.emplace(generate_damping_matrix(num_displacements));
-        }
-        Eigen::MatrixXd& C = *damping_;
-
-        if (!K_solver_) {
-            // Generate the global stiffness matrix
-            Eigen::SparseMatrix<double> K(num_displacements, num_displacements);
-            K.setZero();
-            K.reserve(6 * 6 * num_displacements);
-            for (size_t i = 0; i < mesh_.triangles.size(); ++i) {
-                // No processing needed if the triangle is fixed
-                if (fixed_triangles_[i])
-                    continue;
-
-                auto& triangle = mesh_.triangles[i];
-
-                static constexpr double kThickness = 20; // meters
-
-                const BMatrix B = generate_B(triangle);
-                Eigen::Matrix<double, 6, 6> k = kThickness * area(triangle) * B.transpose() * generate_D() * B;
-
-                for (const auto& [local, global] : generate_local_to_global_mapping(triangle)) {
-                    const auto& [local_row, local_col] = local;
-                    const auto& [global_row, global_col] = global;
-
-                    // We get the global indices above, but since the K matrix only includes dynamic vertices we'll
-                    // need to convert one more time. If the global row/col map to a fixed vertex, we'll ignore it
-                    const size_t dynamic_row = vertex_to_u_[global_row];
-                    const size_t dynamic_col = vertex_to_u_[global_col];
-                    if (dynamic_row >= U_.size() || dynamic_col >= U_.size()) {
-                        continue;
-                    }
-
-                    K.coeffRef(dynamic_row, dynamic_col) += k(local_row, local_col);
-                }
-            }
-
-            // [2] Table 9.3 A.5
-            K = K + kA0 * M + kA1 * C;
-
-            // [2] Table 9.3 A.6
-            K_solver_.emplace();
-            K_solver_->compute(K);
-            if (K_solver_->info() != Eigen::Success) {
-                throw std::runtime_error("Decomposition Failed!");
-            }
-        }
+        Eigen::MatrixXd& M = mass_;
+        Eigen::MatrixXd& C = damping_;
 
         Eigen::VectorXd gravity = Eigen::VectorXd::Zero(num_displacements);
         for (size_t i = 1; i < num_displacements; i += 2) {
@@ -212,8 +204,8 @@ public:
             + C * (kA1 * U_ + kA4 * U_vel_ + kA5 * U_accel_);
 
         // [2] Table 9.3 B.2
-        Eigen::VectorXd U_next = K_solver_->solve(R_hat);
-        if (K_solver_->info() != Eigen::Success) {
+        Eigen::VectorXd U_next = K_solver_.solve(R_hat);
+        if (K_solver_.info() != Eigen::Success) {
             throw std::runtime_error("Solving Failed!");
         }
 
@@ -283,8 +275,9 @@ public:
 
         const size_t vertex_count = mesh_.vertices.size();
 
-        size_t num_dynamic = 0;
+        vertex_to_u_.clear();
         vertex_to_u_.resize(vertex_count, -1);
+        size_t num_dynamic = 0;
         for (size_t i = 0; i < vertex_count; ++i) {
             if (mesh_.fixed[i])
                 continue;
@@ -302,6 +295,7 @@ public:
             U_accel_[i] = -9.8;
         }
 
+        fixed_triangles_.clear();
         fixed_triangles_.reserve(vertex_count);
         for (const auto& triangle : mesh_.triangles) {
             // Fixed until proven otherwise
@@ -318,9 +312,13 @@ public:
             fixed_triangles_.push_back(fixed);
         }
 
-        K_solver_ = std::nullopt;
-        mass_ = std::nullopt;
-        damping_ = std::nullopt;
+        mass_ = generate_mass_matrix(U_.size(), vertex_to_u_, mesh_.mass);
+        damping_ = generate_damping_matrix(U_.size());
+
+        K_solver_.compute(generate_global_stiffness_matrix());
+        if (K_solver_.info() != Eigen::Success) {
+            throw std::runtime_error("Decomposition Failed!");
+        }
     }
 
 private:
@@ -382,9 +380,10 @@ private:
     // Mesh we've been blessed with
     Mesh mesh_;
 
-    std::optional<Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>>> K_solver_;
-    std::optional<Eigen::MatrixXd> mass_;
-    std::optional<Eigen::MatrixXd> damping_;
+    //
+    Eigen::MatrixXd mass_;
+    Eigen::MatrixXd damping_;
+    Eigen::SimplicialLDLT<KMatrix> K_solver_;
 
     // Since we'll only generate displacements for non-fixed vertices, we'll need to store a mapping between mesh
     // vertices and displacement/velocity/accel vectors
