@@ -6,17 +6,21 @@
 #include <unordered_map>
 #include <vector>
 
+#include "common/material.hh"
+
+namespace common {
 //
 // #############################################################################
 //
 
 struct Triangle {
-    static constexpr size_t kDim = 3;
-
     ///
     /// Which vertices belong to this triangle
     ///
+    static constexpr size_t kDim = 3;
     std::array<size_t, kDim> indices;
+
+    Material material;
 };
 
 //
@@ -44,13 +48,4 @@ struct Mesh {
     ///
     std::vector<double> mass;
 };
-
-//
-// #############################################################################
-//
-
-struct Metadata {
-    bool fixed = false;
-    float mass = 1.0f;
-    auto operator<=>(const Metadata&) const = default;
-};
+}

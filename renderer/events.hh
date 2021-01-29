@@ -4,6 +4,8 @@
 #include <unordered_set>
 #include <variant>
 
+#include <GLFW/glfw3.h>
+
 struct GLFWwindow;
 
 enum class EventState {
@@ -12,19 +14,7 @@ enum class EventState {
     kSimulate = 2,
 };
 
-std::string event_state_to_string(const EventState& event_state)
-{
-    switch (event_state) {
-    case EventState::kInit:
-        return "Init";
-    case EventState::kBuild:
-        return "Build";
-    case EventState::kSimulate:
-        return "Simulate";
-    default:
-        return "unknown";
-    }
-}
+std::string event_state_to_string(const EventState& event_state);
 
 using KeyHandler = std::function<void(GLFWwindow*, int)>;
 using MouseHandler = std::function<void(GLFWwindow*)>;
@@ -64,13 +54,6 @@ struct EventWithMetadata {
     Type type = Type::kPress;
     int modifiers = 0;
 };
-
-template <class... Ts>
-struct Overloaded : Ts... {
-    using Ts::operator()...;
-};
-template <class... Ts>
-Overloaded(Ts...) -> Overloaded<Ts...>;
 }
 
 //
@@ -80,75 +63,25 @@ Overloaded(Ts...) -> Overloaded<Ts...>;
 class EventBuilder {
 public:
     // Modifiers
-    EventBuilder& control()
-    {
-        data_.modifiers |= GLFW_MOD_CONTROL;
-        return *this;
-    }
-    EventBuilder& shift()
-    {
-        data_.modifiers |= GLFW_MOD_SHIFT;
-        return *this;
-    }
-    EventBuilder& any_modifier()
-    {
-        data_.modifiers = -1;
-        return *this;
-    }
+    EventBuilder& control();
+    EventBuilder& shift();
+    EventBuilder& any_modifier();
 
     // Type
-    EventBuilder& twice()
-    {
-        data_.type = detail::Type::kDoublePress;
-        return *this;
-    }
-    EventBuilder& hold()
-    {
-        data_.type = detail::Type::kHold;
-        return *this;
-    }
-    EventBuilder& any_type()
-    {
-        data_.type = detail::Type::kAny;
-        return *this;
-    }
-    EventBuilder& release()
-    {
-        data_.type = detail::Type::kRelease;
-        return *this;
-    }
+    EventBuilder& twice();
+    EventBuilder& hold();
+    EventBuilder& any_type();
+    EventBuilder& release();
 
     // Events
-    EventBuilder& key(int key, KeyHandler handler)
-    {
-        data_.event = detail::KeyEvent { key, std::move(handler) };
-        return *this;
-    }
-    EventBuilder& move(MouseMoveHandler handler)
-    {
-        data_.event = detail::MouseMoveEvent { std::move(handler) };
-        return *this;
-    }
-    EventBuilder& left_click(MouseHandler handler)
-    {
-        data_.event = detail::LeftButtonMouseEvent { std::move(handler) };
-        return *this;
-    }
-    EventBuilder& right_click(MouseHandler handler)
-    {
-        data_.event = detail::RightButtonMouseEvent { std::move(handler) };
-        return *this;
-    }
+    EventBuilder& key(int key, KeyHandler handler);
+    EventBuilder& move(MouseMoveHandler handler);
+    EventBuilder& left_click(MouseHandler handler);
+    EventBuilder& right_click(MouseHandler handler);
 
 protected:
     // Get the finished result
-    const detail::EventWithMetadata& get_event_with_metadata()
-    {
-        if (std::visit([](const auto& event) { return static_cast<bool>(event.callback); }, data_.event) == false) {
-            throw std::runtime_error("Using EventBuilder without an event");
-        }
-        return data_;
-    }
+    const detail::EventWithMetadata& get_event_with_metadata();
 
 private:
     detail::EventWithMetadata data_;
@@ -160,7 +93,7 @@ private:
 
 class EventHandler {
 public:
-    static EventHandler* get()
+    inline static EventHandler* get()
     {
         return instance_;
     }
@@ -184,165 +117,25 @@ private:
     };
 
 public:
-    EventHandler()
-    {
-        if (instance_) {
-            throw std::runtime_error("Only one event handler allowed!");
-        }
-        instance_ = this;
-        set_state(EventState::kInit);
-    }
-    ~EventHandler()
-    {
-        instance_ = nullptr;
-    }
+    EventHandler();
+    ~EventHandler();
 
 public:
-    void set_state(EventState state)
-    {
-        if (get_state() == state)
-            return;
-        state_ = state;
-        for (auto& callback : state_callbacks_[state_]) {
-            callback(state_);
-        }
-    }
-    EventState get_state() const
-    {
-        return state_;
-    }
-    void add_state_callback(StateChange callback)
-    {
-        // TODO add some kind of global handler
-        state_callbacks_[EventState::kInit].emplace_back(callback);
-        state_callbacks_[EventState::kBuild].emplace_back(callback);
-        state_callbacks_[EventState::kSimulate].emplace_back(callback);
-    }
-    void add_state_callback(EventState state, StateChange callback)
-    {
-        state_callbacks_[state].emplace_back(std::move(callback));
-    }
+    void set_state(EventState state);
+    EventState get_state() const;
 
-    BuilderDispatch add()
-    {
-        return BuilderDispatch { [this](const detail::EventWithMetadata& data) {
-            // TODO add some kind of global handler
-            handlers_[EventState::kInit].emplace_back(data);
-            handlers_[EventState::kBuild].emplace_back(data);
-            handlers_[EventState::kSimulate].emplace_back(data);
-        } };
-    }
-    BuilderDispatch add(EventState state)
-    {
-        return BuilderDispatch { [state, this](const detail::EventWithMetadata& data) {
-            handlers_[state].emplace_back(data);
-        } };
-    }
+    void add_state_callback(StateChange callback);
+    void add_state_callback(EventState state, StateChange callback);
+
+    BuilderDispatch add();
+    BuilderDispatch add(EventState state);
 
 public:
-    void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
-    {
-        mods_ = mods;
-        if (is_holding_ && action == GLFW_RELEASE) {
-            is_holding_ = false;
-            return;
-        }
+    void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
 
-        for (const auto& handler : handlers_[state_]) {
-            if (handler.type != detail::Type::kAny) {
-                using Type = detail::Type;
-                auto& type = handler.type;
+    void cursor_position_callback(GLFWwindow* window, double xpos, double ypos);
 
-                if ((type == Type::kHold) xor is_holding_)
-                    continue;
-                if (type == Type::kRelease && action != GLFW_RELEASE)
-                    continue;
-                if ((type == Type::kPress || type == Type::kDoublePress) && action != GLFW_PRESS)
-                    continue;
-            }
-
-            // Make sure all of the modifiers are met
-            if ((handler.modifiers >= 0) && (handler.modifiers xor mods_) != 0) {
-                continue;
-            }
-
-            // Now we can actually dispatch
-            switch (button) {
-            case GLFW_MOUSE_BUTTON_LEFT:
-                if (auto* event = std::get_if<detail::LeftButtonMouseEvent>(&handler.event))
-                    event->callback(window);
-                break;
-            case GLFW_MOUSE_BUTTON_RIGHT:
-                if (auto* event = std::get_if<detail::RightButtonMouseEvent>(&handler.event))
-                    event->callback(window);
-                break;
-            default:
-                break;
-            }
-        }
-
-        // Update this here so that next cycle we'll have started the hold, otherwise a single click will be a hold
-        if (action == GLFW_PRESS) {
-            is_holding_ = true;
-            last_mouse_click_ = Clock::now();
-        }
-    }
-
-    void cursor_position_callback(GLFWwindow* window, double xpos, double ypos)
-    {
-        for (const auto& handler : handlers_[state_]) {
-            if ((handler.type != detail::Type::kAny) && (handler.type == detail::Type::kHold) xor is_holding_) {
-                continue;
-            }
-
-            // Make sure all of the modifiers are met
-            if ((handler.modifiers >= 0) && (handler.modifiers xor mods_) != 0) {
-                continue;
-            }
-
-            if (auto* event = std::get_if<detail::MouseMoveEvent>(&handler.event)) {
-                event->callback(window, xpos, ypos);
-            }
-        }
-    }
-
-    void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
-    {
-        mods_ = mods;
-
-        for (const auto& handler : handlers_[state_]) {
-            if (handler.type != detail::Type::kAny) {
-                using Type = detail::Type;
-                auto& type = handler.type;
-
-                if (type == Type::kHold && action != GLFW_REPEAT)
-                    continue;
-                if (type == Type::kRelease && action != GLFW_RELEASE)
-                    continue;
-                if ((type == Type::kPress || type == Type::kDoublePress) && action != GLFW_PRESS)
-                    continue;
-            }
-
-            // Make sure all of the modifiers are met
-            if ((handler.modifiers >= 0) && (handler.modifiers xor mods_) != 0) {
-
-                // Control or shift modifiers are fine, if that's the key being pressed. Only skip if the key isn't one
-                // of those two
-                bool control_key = key == GLFW_KEY_LEFT_CONTROL || key == GLFW_KEY_RIGHT_CONTROL;
-                bool shift_key = key == GLFW_KEY_LEFT_SHIFT || key == GLFW_KEY_RIGHT_SHIFT;
-                if (((mods_ xor GLFW_MOD_CONTROL) == 0 && !control_key) || ((mods_ xor GLFW_MOD_SHIFT) == 0 && !shift_key)) {
-                    continue;
-                }
-            }
-
-            // Now we can actually dispatch
-            if (auto* event = std::get_if<detail::KeyEvent>(&handler.event)) {
-                if (event->key == key) {
-                    event->callback(window, key);
-                }
-            }
-        }
-    }
+    void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
 
 private:
     EventState state_ = EventState::kInit;
@@ -362,23 +155,8 @@ private:
 // #############################################################################
 //
 
-void route_mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
-{
-    if (auto* handler = EventHandler::get()) {
-        handler->mouse_button_callback(window, button, action, mods);
-    }
-}
+void route_mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
 
-void route_cursor_position_callback(GLFWwindow* window, double xpos, double ypos)
-{
-    if (auto* handler = EventHandler::get()) {
-        handler->cursor_position_callback(window, xpos, ypos);
-    }
-}
+void route_cursor_position_callback(GLFWwindow* window, double xpos, double ypos);
 
-void route_key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
-{
-    if (auto* handler = EventHandler::get()) {
-        handler->key_callback(window, key, scancode, action, mods);
-    }
-}
+void route_key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);

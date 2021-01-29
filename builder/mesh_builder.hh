@@ -1,5 +1,6 @@
 #pragma once
 
+#include "builder/builder.hh"
 #include "common/mesh.hh"
 
 #include <vector>
@@ -14,7 +15,7 @@ private:
     using Coordinate2d = std::pair<Coordinate, Coordinate>;
     struct BuildingTriangle {
         std::array<std::pair<Coordinate, Coordinate>, 3> coords;
-        Metadata metadata;
+        common::Material material;
     };
 
 public:
@@ -24,15 +25,15 @@ public:
     }
 
 public:
-    void add_triangle(Coordinate2d c0, Coordinate2d c1, Coordinate2d c2, Metadata metadata = {})
+    void add_triangle(Coordinate2d c0, Coordinate2d c1, Coordinate2d c2, common::Material material = common::Material::kNone)
     {
-        triangles_.emplace_back(BuildingTriangle { { c0, c1, c2 }, metadata });
+        triangles_.emplace_back(BuildingTriangle { { c0, c1, c2 }, material });
     }
 
-    Mesh finalize() const
+    common::Mesh finalize() const
     {
         // Init the final mesh, reserving all the space we'll need
-        Mesh mesh;
+        common::Mesh mesh;
         mesh.vertices.reserve(3 * triangles_.size());
         mesh.triangles.reserve(triangles_.size());
         mesh.fixed.reserve(triangles_.size());
@@ -46,7 +47,7 @@ public:
     }
 
 private:
-    void populate_triangles(Mesh& mesh) const
+    void populate_triangles(common::Mesh& mesh) const
     {
         // We'll use this to establish connections between vertices, this works since we're using integer coordinates
         std::unordered_map<Coordinate2d, size_t, Coordinate2dHash> visited;
@@ -54,6 +55,7 @@ private:
         // We'll create the triangles in order they were added. It's possible we can do better here
         for (const BuildingTriangle& triangle : triangles_) {
             auto& mesh_triangle = mesh.triangles.emplace_back();
+            mesh_triangle.material = triangle.material;
 
             for (size_t i = 0; i < triangle.coords.size(); ++i) {
                 const Coordinate2d& coord = triangle.coords[i];
@@ -72,12 +74,12 @@ private:
         }
     }
 
-    void populate_fixed(Mesh& mesh) const
+    void populate_fixed(common::Mesh& mesh) const
     {
         mesh.fixed.resize(mesh.vertices.size(), false);
         for (size_t i = 0; i < triangles_.size(); ++i) {
-            const auto& metadata = triangles_[i].metadata;
-            if (!metadata.fixed) {
+            const auto& material = triangles_[i].material;
+            if (material != common::Material::kStone) {
                 continue;
             }
 
@@ -88,14 +90,17 @@ private:
         }
     }
 
-    void populate_mass(Mesh& mesh) const
+    void populate_mass(common::Mesh& mesh) const
     {
         mesh.mass.resize(mesh.vertices.size(), 0.0);
+
+        constexpr auto kBlockSize = BuildingContext::kBlockSize;
+        constexpr float kVolume = kBlockSize * kBlockSize * kBlockSize / 2.0;
 
         // Naively split the mass between each vertex. NOTE there are 6 vertices per triangle (x1, y1, x2, y2, x3, y3)
         // This could probably be improved by integrating over the area of the triangles.
         for (size_t i = 0; i < triangles_.size(); ++i) {
-            const auto sixth_mass = triangles_[i].metadata.mass / 6.0;
+            const auto sixth_mass = kVolume * mass(triangles_[i].material) / 6.0;
             for (size_t index : mesh.triangles[i].indices) {
                 mesh.mass[index] = sixth_mass;
                 mesh.mass[index + 1] = sixth_mass;

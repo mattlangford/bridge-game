@@ -37,6 +37,7 @@ cc_library(
     hdrs = glob(["builder/*.hh"]),
     deps = [
         ":common",
+        ":renderer",
         "@glfw//:glfw",
         "@eigen//:eigen",
     ],

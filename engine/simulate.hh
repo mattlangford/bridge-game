@@ -102,10 +102,10 @@ struct Cache {
 };
 
 struct SimulationContext {
-    SimulationContext(Mesh mesh_);
+    SimulationContext(common::Mesh mesh_);
 
     State state;
-    Mesh mesh;
+    common::Mesh mesh;
     Cache cache;
 
     double get_displacement(size_t index) const
@@ -139,7 +139,7 @@ struct MeshStepper {
 };
 
 struct TriangleStressHelpers {
-    const Triangle& triangle;
+    const common::Triangle& triangle;
     const SimulationContext& context;
 
     // These both assume the same formatting as found in [1] 4.71 and 4.72. They are 1 indexed, and assume indices
@@ -253,7 +253,7 @@ GlobalKMatrix generate_global_stiffness_matrix(const SimulationContext& context)
 // #############################################################################
 //
 
-SimulationContext::SimulationContext(Mesh mesh_)
+SimulationContext::SimulationContext(common::Mesh mesh_)
 {
     mesh = std::move(mesh_);
     const size_t vertex_count = mesh.vertices.size();
@@ -386,7 +386,7 @@ public:
                   << "us\n";
     }
 
-    double compute_stress(const Triangle& triangle) const
+    double compute_stress(const common::Triangle& triangle) const
     {
         Eigen::Matrix<double, 6, 1> displacements;
         for (size_t i = 0; i < triangle.indices.size(); ++i) {
@@ -406,7 +406,7 @@ public:
         glBegin(GL_TRIANGLES);
 
         for (size_t i = 0; i < context->mesh.triangles.size(); ++i) {
-            const Triangle& triangle = context->mesh.triangles[i];
+            const common::Triangle& triangle = context->mesh.triangles[i];
 
             if (context->cache.fixed_triangles[i]) {
                 glColor3f(0.f, 0.f, 1.f);
@@ -431,7 +431,7 @@ public:
         glEnd();
     }
 
-    void set_mesh(Mesh mesh)
+    void set_mesh(common::Mesh mesh)
     {
         context = std::make_unique<SimulationContext>(std::move(mesh));
     }
