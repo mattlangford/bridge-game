@@ -1,3 +1,5 @@
+#pragma once
+
 #include <optional>
 #include <queue>
 #include <utility>
@@ -50,10 +52,14 @@ double get_mass_from_cell(const Cell& c)
     }
 }
 
+/// How big each block is for rendering
+static constexpr size_t kPxSize = 15; // px
+
+/// How big each block is for simulation
+static constexpr size_t kBlockSize = 5; // meters
+
 class Builder {
 public:
-    static constexpr size_t kPxSize = 10;
-
     inline static Builder* drawer;
 
 public:
@@ -165,12 +171,10 @@ public:
             for (const size_t this_index : indices) {
                 const Cell& cell = data_[this_index];
 
-                constexpr size_t kBlockSize = 1; // meters
-
                 Metadata metadata;
                 metadata.fixed = cell == Cell::kStone;
 
-                constexpr float kVolume = kBlockSize * kBlockSize / 2.0;
+                constexpr float kVolume = kBlockSize * kBlockSize * kBlockSize / 2.0;
                 metadata.mass = kVolume * get_mass_from_cell(cell);
 
                 const auto [w_block, h_block] = reverse_index(this_index);

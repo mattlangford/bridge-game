@@ -13,6 +13,7 @@
 #include <optional>
 #include <vector>
 
+#include "builder.hh"
 #include "mesh.hh"
 
 #include <GLFW/glfw3.h>
@@ -78,6 +79,39 @@ std::vector<LocalToGlobalMapping> generate_local_to_global_mapping(const Triangl
 // #############################################################################
 //
 
+Eigen::MatrixXd generate_mass_matrix(
+    size_t num_displacements,
+    const std::vector<size_t>& vertex_to_u,
+    const std::vector<double>& mass)
+{
+    Eigen::MatrixXd M = Eigen::MatrixXd::Zero(num_displacements, num_displacements);
+    M.setZero();
+    for (size_t i = 0; i < mass.size(); ++i) {
+        const size_t index = vertex_to_u[i];
+        if (index < num_displacements) {
+            M(index, index) = mass[i];
+        }
+    }
+    return M;
+}
+
+//
+// #############################################################################
+//
+
+Eigen::MatrixXd generate_damping_matrix(size_t vertex_count)
+{
+    // Not really sure what this should be
+    constexpr double kDampingFactor = 10.0;
+    Eigen::MatrixXd C = Eigen::MatrixXd::Zero(vertex_count, vertex_count);
+    C.diagonal().fill(kDampingFactor);
+    return C;
+}
+
+//
+// #############################################################################
+//
+
 class Simlator {
 public:
     void step(const double dt)
@@ -97,7 +131,7 @@ public:
 
     void step()
     {
-        const size_t vertex_count = U_.size();
+        const size_t num_displacements = U_.size();
 
         // From [2] Table 9.3 A.4, we'll define some constants to help out later
         constexpr double kAlpha = 0.5f;
@@ -113,32 +147,21 @@ public:
 
         // Generate the mass matrix
         if (!mass_) {
-            Eigen::MatrixXd& M = mass_.emplace(vertex_count, vertex_count);
-            M.setZero();
-            for (size_t i = 0; i < mesh_.mass.size(); ++i) {
-                const size_t index = vertex_to_u_[i];
-                if (index < U_.size()) {
-                    M(index, index) = mesh_.mass[i];
-                }
-            }
+            mass_.emplace(generate_mass_matrix(num_displacements, vertex_to_u_, mesh_.mass));
         }
         Eigen::MatrixXd& M = *mass_;
 
         // Generate arbitrary dampening matrix
         if (!damping_) {
-            // Not really sure what this should be
-            constexpr double kDampingFactor = 10.0;
-            Eigen::MatrixXd& C = damping_.emplace(vertex_count, vertex_count);
-            C.setZero();
-            C.diagonal().fill(kDampingFactor);
+            damping_.emplace(generate_damping_matrix(num_displacements));
         }
         Eigen::MatrixXd& C = *damping_;
 
         if (!K_solver_) {
             // Generate the global stiffness matrix
-            Eigen::SparseMatrix<double> K(vertex_count, vertex_count);
+            Eigen::SparseMatrix<double> K(num_displacements, num_displacements);
             K.setZero();
-            K.reserve(6 * 6 * vertex_count);
+            K.reserve(6 * 6 * num_displacements);
             for (size_t i = 0; i < mesh_.triangles.size(); ++i) {
                 // No processing needed if the triangle is fixed
                 if (fixed_triangles_[i])
@@ -146,7 +169,7 @@ public:
 
                 auto& triangle = mesh_.triangles[i];
 
-                static constexpr double kThickness = 1; // meters
+                static constexpr double kThickness = 20; // meters
 
                 const BMatrix B = generate_B(triangle);
                 Eigen::Matrix<double, 6, 6> k = kThickness * area(triangle) * B.transpose() * generate_D() * B;
@@ -178,8 +201,8 @@ public:
             }
         }
 
-        Eigen::VectorXd gravity = Eigen::VectorXd::Zero(vertex_count);
-        for (size_t i = 1; i < vertex_count; i += 2) {
+        Eigen::VectorXd gravity = Eigen::VectorXd::Zero(num_displacements);
+        for (size_t i = 1; i < num_displacements; i += 2) {
             gravity[i] = -9.8 * M(i, i);
         }
 
@@ -242,9 +265,9 @@ public:
                 glColor3f(std::clamp(red, 0.f, 1.f), std::clamp(green, 0.f, 1.f), 0.0f);
             }
 
-            constexpr size_t kPixelSize = 10;
-            const auto x = [&](uint8_t i) { return kPixelSize * get_coordinate(triangle.indices[i]); };
-            const auto y = [&](uint8_t i) { return kPixelSize * get_coordinate(triangle.indices[i] + 1); };
+            constexpr float kPxPerMeter = static_cast<float>(kPxSize) / kBlockSize;
+            const auto x = [&](uint8_t i) { return kPxPerMeter * get_coordinate(triangle.indices[i]); };
+            const auto y = [&](uint8_t i) { return kPxPerMeter * get_coordinate(triangle.indices[i] + 1); };
 
             glVertex2f(x(0), y(0));
             glVertex2f(x(1), y(1));

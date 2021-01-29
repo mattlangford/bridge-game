@@ -56,7 +56,7 @@ struct Mesh {
     ///
     /// Stores each vertex's mass (in kg/m3)
     ///
-    std::vector<float> mass;
+    std::vector<double> mass;
 };
 
 //
