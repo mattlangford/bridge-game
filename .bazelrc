@@ -1,4 +1,4 @@
 try-import %workspace%/user.bazelrc
 
-build --cxxopt='-std=c++2a'
+build --cxxopt='-std=c++2a' --cxxopt='-O3'
 test --test_output=errors --color=yes
