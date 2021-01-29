@@ -1,7 +1,10 @@
 cc_binary(
     name = "main",
     srcs = ["main.cc"],
-    deps = [":engine"]
+    deps = [
+        ":engine",
+        "@glfw//:glfw",
+    ]
 )
 
 cc_library(
