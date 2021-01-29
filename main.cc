@@ -5,10 +5,10 @@
 
 #include <GLFW/glfw3.h>
 
-#include "builder.hh"
-#include "events.hh"
-#include "mesh.hh"
-#include "simulate.hh"
+#include "builder/builder.hh"
+#include "builder/mesh.hh"
+#include "engine/simulate.hh"
+#include "renderer/events.hh"
 
 void init_view()
 {

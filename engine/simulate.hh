@@ -13,8 +13,8 @@
 #include <optional>
 #include <vector>
 
-#include "builder.hh"
-#include "mesh.hh"
+#include "builder/builder.hh"
+#include "builder/mesh.hh"
 
 #include <GLFW/glfw3.h>
 

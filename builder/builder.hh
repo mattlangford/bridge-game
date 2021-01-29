@@ -5,8 +5,8 @@
 #include <utility>
 #include <vector>
 
-#include "events.hh"
-#include "mesh.hh"
+#include "builder/mesh.hh"
+#include "renderer/events.hh"
 
 static constexpr size_t kWidth = 1280;
 static constexpr size_t kHeight = 720;
