@@ -87,7 +87,7 @@ int main(int argc, char* argv[])
         }
     });
     handler.add_state_callback(EventState::kSimulate, [&](EventState) {
-        simulator.set_mesh(builder.generate_mesh());
+        simulator.set_mesh(generate_mesh(builder.building_context()));
     });
     builder.setup_callbacks(handler);
 

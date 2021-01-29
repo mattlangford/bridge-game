@@ -419,7 +419,7 @@ public:
                 glColor3f(std::clamp(red, 0.f, 1.f), std::clamp(green, 0.f, 1.f), 0.0f);
             }
 
-            constexpr float kPxPerMeter = static_cast<float>(kPxSize) / kBlockSize;
+            constexpr float kPxPerMeter = static_cast<float>(BuildingContext::kPxSize) / BuildingContext::kBlockSize;
             const auto x = [&](uint8_t i) { return kPxPerMeter * context->get_coordinate(triangle.indices[i]); };
             const auto y = [&](uint8_t i) { return kPxPerMeter * context->get_coordinate(triangle.indices[i] + 1); };
 
