@@ -108,7 +108,6 @@ public:
         mesh.mass.reserve(triangles_.size());
 
         populate_triangles(mesh);
-        populate_connections(mesh);
         populate_fixed(mesh);
         populate_mass(mesh);
 
@@ -138,51 +137,6 @@ private:
                 }
 
                 mesh_triangle.indices[i] = it->second;
-            }
-        }
-    }
-
-    void populate_connections(Mesh& mesh) const
-    {
-        // Each vertex may be connected to different triangles. In order to figure out what is connected to what, we'll
-        // go through a first pass and generate a bunch of these ConnectionHelpers then go through and populate the
-        // actual data in the mesh.
-        struct ConnectionHelper {
-            // All of the connections associated with this entry
-            std::vector<Connection> connections;
-
-            // Each of the above connections will go into each of these here
-            std::vector<std::vector<Connection>*> destinations;
-        };
-
-        // Since we only store connections to the first coordinate in each pair, we only need half the size here
-        // TODO(mlangford): This can probably be made better and avoid a crap ton of copies
-        std::vector<ConnectionHelper> connections(mesh.vertices.size() / 2);
-        for (size_t triangle_index = 0; triangle_index < mesh.triangles.size(); ++triangle_index) {
-            auto& triangle = mesh.triangles[triangle_index];
-            for (size_t coord_index = 0; coord_index < triangle.indices.size(); ++coord_index) {
-                const size_t vertex_index = triangle.indices[coord_index];
-                auto& connection = triangle.connections[coord_index];
-
-                auto& helper = connections[vertex_index / 2];
-                helper.connections.emplace_back(Connection { triangle_index, coord_index });
-                helper.destinations.emplace_back(&connection);
-            }
-        }
-
-        // Now push all of the connections into all of the destinations in each helper
-        for (const ConnectionHelper& helper : connections) {
-            for (size_t destination_index = 0; destination_index < helper.destinations.size(); ++destination_index) {
-                auto& destination = *helper.destinations[destination_index];
-                for (size_t connection_index = 0; connection_index < helper.connections.size(); ++connection_index) {
-                    // Don't put the same connection into it's own destination
-                    if (connection_index == destination_index) {
-                        continue;
-                    }
-
-                    const auto& connection = helper.connections[connection_index];
-                    destination.push_back(connection);
-                }
             }
         }
     }

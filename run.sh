@@ -7,7 +7,7 @@ function build(){
 }
 
 if [ "$#" -eq 0 ]; then
-    build main && echo "Done Building. Running..." #&& ./main $@
+    build main && echo "Done Building. Running..." && ./main $@
 elif [ "$#" -eq 1 ] && [ "$1" == "test" ]; then
     shift # Remove the first arg (which is "test")
     build test && echo "Done Building. Testing..." && ./test $@
