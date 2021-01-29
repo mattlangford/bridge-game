@@ -13,7 +13,7 @@ new_git_repository(
     name = "glfw",
     remote = "https://github.com/glfw/glfw.git",
     commit = "8d7e5cdb49a1a5247df612157ecffdd8e68923d2",
-    build_file = "@//:glfw.BUILD",
+    build_file = "//third_party:glfw.BUILD",
     # If I don't include this it gives warnings
     shallow_since = "1551813720 +0100",
 )
@@ -23,6 +23,6 @@ http_archive(
     #build_file = "//third_party:eigen.BUILD",
     url = "https://gitlab.com/libeigen/eigen/-/archive/3.3.9/eigen-3.3.9.tar.gz",
     sha256 = "7985975b787340124786f092b3a07d594b2e9cd53bbfe5f3d9b1daee7d55f56f",
-    build_file = "@//:eigen.BUILD",
+    build_file = "//third_party:eigen.BUILD",
     strip_prefix="eigen-3.3.9"
 )
