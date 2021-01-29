@@ -9,10 +9,22 @@ cc_binary(
 )
 
 cc_library(
+    name = "common",
+    srcs = glob(["common/*.cc"]),
+    hdrs = glob(["common/*.hh"]),
+    deps = [
+        "@glfw//:glfw",
+        "@eigen//:eigen",
+    ],
+    defines = ["GL_SILENCE_DEPRECATION"],
+)
+
+cc_library(
     name = "renderer",
     srcs = glob(["renderer/*.cc"]),
     hdrs = glob(["renderer/*.hh"]),
     deps = [
+        ":common",
         "@glfw//:glfw",
         "@eigen//:eigen",
     ],
@@ -24,6 +36,7 @@ cc_library(
     srcs = glob(["builder/*.cc"]),
     hdrs = glob(["builder/*.hh"]),
     deps = [
+        ":common",
         "@glfw//:glfw",
         "@eigen//:eigen",
     ],
@@ -35,6 +48,7 @@ cc_library(
     srcs = glob(["engine/*.cc"]),
     hdrs = glob(["engine/*.hh"]),
     deps = [
+        ":common",
         "@glfw//:glfw",
         "@eigen//:eigen",
     ],

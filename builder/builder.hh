@@ -5,7 +5,8 @@
 #include <utility>
 #include <vector>
 
-#include "builder/mesh.hh"
+#include "builder/mesh_builder.hh"
+#include "common/mesh.hh"
 #include "renderer/events.hh"
 
 static constexpr size_t kWidth = 1280;

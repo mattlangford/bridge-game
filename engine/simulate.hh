@@ -14,7 +14,7 @@
 #include <vector>
 
 #include "builder/builder.hh"
-#include "builder/mesh.hh"
+#include "common/mesh.hh"
 
 #include <GLFW/glfw3.h>
 

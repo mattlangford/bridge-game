@@ -5,8 +5,7 @@
 
 #include <GLFW/glfw3.h>
 
-#include "builder/builder.hh"
-#include "builder/mesh.hh"
+#include "builder/mesh_builder.hh"
 #include "engine/simulate.hh"
 #include "renderer/events.hh"
 
