@@ -23,6 +23,8 @@ using BMatrix = Eigen::Matrix<double, 3, 6>;
 using GlobalKMatrix = Eigen::SparseMatrix<double>;
 using LocalKMatrix = Eigen::Matrix<double, 6, 6>;
 
+static Eigen::IOFormat CleanFmt(4, 0, ", ", "\n", "[", "]");
+
 //
 // #############################################################################
 //
@@ -30,7 +32,7 @@ using LocalKMatrix = Eigen::Matrix<double, 6, 6>;
 DMatrix generate_D()
 {
     // As a proof of concept I'm just going to hardcode these
-    const double E = 3.7 * 1E5; // youngs modulus N/m^2 (for brick) (slightly adjusted)
+    const double E = 3.7 * 1E7; // youngs modulus N/m^2 (for brick) (slightly adjusted)
     const double v = 0.1; // poissons ratio (also for brick)
 
     // Comes from [1] 4.14
@@ -38,10 +40,10 @@ DMatrix generate_D()
     // clang-format off
     d << 1.0,   v, 0.0,
            v, 1.0, 0.0,
-         0.0, 0.0, 0.5f * (1.0 - v);
+         0.0, 0.0, (1.0 - v) / 2.0;
     // clang-format on
 
-    return d * E / (1 - (v * v));
+    return d * E / (1.0 - v * v);
 }
 
 //
@@ -58,7 +60,7 @@ Eigen::MatrixXd generate_mass_matrix(
     for (size_t i = 0; i < mass.size(); ++i) {
         const size_t index = vertex_to_displacements[i];
         if (index < num_displacements) {
-            M(index, index) = mass[i];
+            M(index, index) += mass[i];
         }
     }
     return M;
@@ -71,7 +73,7 @@ Eigen::MatrixXd generate_mass_matrix(
 Eigen::MatrixXd generate_damping_matrix(size_t vertex_count)
 {
     // Not really sure what this should be
-    constexpr double kDampingFactor = 10.0;
+    constexpr double kDampingFactor = 1000.0;
     Eigen::MatrixXd C = Eigen::MatrixXd::Zero(vertex_count, vertex_count);
     C.diagonal().fill(kDampingFactor);
     return C;
@@ -134,7 +136,7 @@ struct MeshStepper {
     static constexpr double kA6 = kDt * (1.0f - kAlpha);
     static constexpr double kA7 = kDt * kAlpha;
 
-    static State step(const SimulationContext& context);
+    static State step(SimulationContext& context);
     std::vector<double> evaluate_stresses() const;
 };
 
@@ -186,24 +188,48 @@ struct TriangleStressHelpers {
 
     void populate_local_stiffness(GlobalKMatrix& global_k) const
     {
-        static constexpr double kThickness = 20; // meters
+        static constexpr double kThickness = 5; // meters
 
         const BMatrix B = generate_B();
         const size_t num_displacements = context.state.displacements.size();
 
         // [1] 4.66
         LocalKMatrix local_k = kThickness * area() * B.transpose() * generate_D() * B;
-        for (const auto& [local, global] : generate_local_to_global_mapping()) {
-            const auto& [local_row, local_col] = local;
-            const auto& [global_row, global_col] = global;
+        // for (const auto& [local, global] : generate_local_to_global_mapping()) {
+        //     const auto& [local_row, local_col] = local;
+        //     const auto& [global_row, global_col] = global;
 
-            // We get the global indices above, but since the K matrix only includes dynamic vertices we'll
-            // need to convert one more time. If the global row/col map to a fixed vertex, we'll ignore it
-            const auto& vertex_to_displacements = context.cache.vertex_to_displacements;
-            const size_t dynamic_row = vertex_to_displacements[global_row];
-            const size_t dynamic_col = vertex_to_displacements[global_col];
-            if (dynamic_row < num_displacements && dynamic_col < num_displacements) {
-                global_k.coeffRef(dynamic_row, dynamic_col) += local_k(local_row, local_col);
+        //     // We get the global indices above, but since the K matrix only includes dynamic vertices we'll
+        //     // need to convert one more time. If the global row/col map to a fixed vertex, we'll ignore it
+        //     const auto& vertex_to_displacements = context.cache.vertex_to_displacements;
+        //     const size_t dynamic_row = vertex_to_displacements[global_row];
+        //     const size_t dynamic_col = vertex_to_displacements[global_col];
+        //     std::cout << "local: " << local_row << ", " << local_col << ", ";
+        //     std::cout << "global: " << global_row << ", " << global_col << ", ";
+        //     std::cout << "dynamic: " << dynamic_row << ", " << dynamic_col << ", ";
+        //     std::cout << "\n";
+        //     if (dynamic_row < num_displacements && dynamic_col < num_displacements) {
+        //         global_k.coeffRef(dynamic_row, dynamic_col) += local_k(local_row, local_col);
+        //     }
+        // }
+        auto to_global = [this](size_t i) {
+            if (i % 2 == 0) {
+                return triangle.indices[i / 2];
+            } else {
+                return triangle.indices[i / 2] + 1;
+            }
+        };
+        for (size_t local_row = 0; local_row < 6; ++local_row) {
+            for (size_t local_col = 0; local_col < 6; ++local_col) {
+                const size_t global_row = to_global(local_row);
+                const size_t global_col = to_global(local_col);
+
+                const auto& vertex_to_displacements = context.cache.vertex_to_displacements;
+                const size_t dynamic_row = vertex_to_displacements[global_row];
+                const size_t dynamic_col = vertex_to_displacements[global_col];
+                if (dynamic_row < num_displacements && dynamic_col < num_displacements) {
+                    global_k.coeffRef(dynamic_row, dynamic_col) += local_k(local_row, local_col);
+                }
             }
         }
     }
@@ -241,8 +267,8 @@ GlobalKMatrix generate_global_stiffness_matrix(const SimulationContext& context)
 
     for (size_t i = 0; i < context.mesh.triangles.size(); ++i) {
         // No processing needed if the triangle is fixed
-        if (context.cache.fixed_triangles[i])
-            continue;
+        // if (context.cache.fixed_triangles[i])
+        //     continue;
 
         TriangleStressHelpers { context.mesh.triangles[i], context }.populate_local_stiffness(K);
     }
@@ -308,7 +334,7 @@ SimulationContext::SimulationContext(common::Mesh mesh_)
     }
 }
 
-State MeshStepper::step(const SimulationContext& context)
+State MeshStepper::step(SimulationContext& context)
 {
     const size_t num_displacements = context.state.displacements.size();
 
@@ -372,30 +398,13 @@ public:
         if (!context)
             return;
 
-        const auto start = std::chrono::high_resolution_clock::now();
         const size_t num_steps = dt / MeshStepper::kDt;
         for (size_t i = 0; i < num_steps; ++i) {
             auto new_state = MeshStepper::step(*context);
             context->state = new_state;
         }
 
-        std::cout << "Performed " << num_steps << " steps in "
-                  << std::chrono::duration_cast<std::chrono::microseconds>(
-                         std::chrono::high_resolution_clock::now() - start)
-                         .count()
-                  << "us\n";
-    }
-
-    double compute_stress(const common::Triangle& triangle) const
-    {
-        Eigen::Matrix<double, 6, 1> displacements;
-        for (size_t i = 0; i < triangle.indices.size(); ++i) {
-            displacements[2 * i] = context->get_displacement(triangle.indices[i]);
-            displacements[2 * i + 1] = context->get_displacement(triangle.indices[i] + 1);
-        }
-
-        Eigen::Vector3d stresses = generate_D() * TriangleStressHelpers { triangle, *context }.generate_B() * displacements;
-        return stresses.norm();
+        destroy_stressful_triangles();
     }
 
     void draw() const
@@ -403,22 +412,23 @@ public:
         if (!context)
             return;
 
-        glBegin(GL_TRIANGLES);
-
         for (size_t i = 0; i < context->mesh.triangles.size(); ++i) {
+            glBegin(GL_TRIANGLES);
+
             const common::Triangle& triangle = context->mesh.triangles[i];
 
             if (context->cache.fixed_triangles[i]) {
                 glColor3f(0.f, 0.f, 1.f);
             } else {
-                constexpr double kMaxStress = 10000;
-                const double stress = compute_stress(triangle);
+                constexpr double kMaxStress = 2'000'000;
+                const double stress = compute_stress(triangle).sum();
 
                 float red = static_cast<float>(stress / kMaxStress); // 0 when stress is 0, 1 when stress is high
                 float green = static_cast<float>((kMaxStress - stress) / kMaxStress); // 1 when stress is 0, 0 when stress is high
                 glColor3f(std::clamp(red, 0.f, 1.f), std::clamp(green, 0.f, 1.f), 0.0f);
             }
 
+            // constexpr float kPxPerMeter = 200;
             constexpr float kPxPerMeter = static_cast<float>(BuildingContext::kPxSize) / BuildingContext::kBlockSize;
             const auto x = [&](uint8_t i) { return kPxPerMeter * context->get_coordinate(triangle.indices[i]); };
             const auto y = [&](uint8_t i) { return kPxPerMeter * context->get_coordinate(triangle.indices[i] + 1); };
@@ -426,14 +436,65 @@ public:
             glVertex2f(x(0), y(0));
             glVertex2f(x(1), y(1));
             glVertex2f(x(2), y(2));
-        }
+            glEnd();
 
-        glEnd();
+            glBegin(GL_LINE_LOOP);
+            glColor3f(0.1f, 0.1f, 0.1f);
+            glVertex2f(x(0), y(0));
+            glVertex2f(x(1), y(1));
+            glVertex2f(x(2), y(2));
+            glEnd();
+        }
     }
 
     void set_mesh(common::Mesh mesh)
     {
         context = std::make_unique<SimulationContext>(std::move(mesh));
+    }
+
+private:
+    void destroy_stressful_triangles()
+    {
+        std::vector<double> stresses;
+        stresses.reserve(context->mesh.triangles.size());
+        double max_stress = 0;
+        for (const auto& triangle : context->mesh.triangles) {
+            double stress = compute_stress(triangle).norm();
+            max_stress = std::max(max_stress, stress);
+            stresses.emplace_back(stress);
+        }
+
+        constexpr double kMaxStress = 2'000'000;
+        if (max_stress < kMaxStress) {
+            return;
+        }
+
+        std::vector<common::Triangle> triangles;
+        triangles.reserve(context->mesh.triangles.size());
+
+        auto previous_state = context->state;
+        for (size_t i = 0; i < context->mesh.triangles.size(); ++i) {
+            if (stresses[i] < kMaxStress) {
+                triangles.emplace_back(context->mesh.triangles[i]);
+            }
+        }
+        context->mesh.triangles = std::move(triangles);
+
+        // Using set_mesh will reset the displacements/velocities/accelerations so we need to make sure to record them
+        // and reuse them for the next iteration
+        set_mesh(std::move(context->mesh));
+        context->state = std::move(previous_state);
+    }
+
+    Eigen::Vector3d compute_stress(const common::Triangle& triangle) const
+    {
+        Eigen::Matrix<double, 6, 1> displacements;
+        for (size_t i = 0; i < triangle.indices.size(); ++i) {
+            displacements[2 * i] = context->get_displacement(triangle.indices[i]);
+            displacements[2 * i + 1] = context->get_displacement(triangle.indices[i] + 1);
+        }
+
+        return generate_D() * TriangleStressHelpers { triangle, *context }.generate_B() * displacements;
     }
 
 private:

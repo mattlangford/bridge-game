@@ -33,7 +33,7 @@ void print_fps()
     static size_t frame_counter = 0;
     static Clock::time_point last_time = Clock::now();
 
-    static constexpr size_t kFPSFrames = 10;
+    static constexpr size_t kFPSFrames = 100;
     if (++frame_counter % kFPSFrames == 0) {
         auto now = Clock::now();
 
@@ -42,6 +42,17 @@ void print_fps()
 
         last_time = now;
     }
+}
+
+common::Mesh build_test_mesh()
+{
+    MeshBuilder builder;
+    builder.add_triangle({ 0, 1 }, { 1, 1 }, { 0, 2 }, common::Material::kBrick);
+    builder.add_triangle({ 1, 1 }, { 0, 2 }, { 1, 2 }, common::Material::kBrick);
+    builder.add_triangle({ 0, 2 }, { 1, 2 }, { 1, 3 }, common::Material::kBrick);
+    builder.add_triangle({ 1, 3 }, { 2, 2 }, { 1, 2 }, common::Material::kBrick);
+    builder.add_triangle({ 0, 1 }, { 1, 1 }, { 0, 0 }, common::Material::kStone);
+    return builder.finalize();
 }
 
 int main(int argc, char* argv[])
@@ -96,6 +107,7 @@ int main(int argc, char* argv[])
     glfwSetKeyCallback(window, route_key_callback);
 
     handler.set_state(EventState::kBuild);
+    // simulator.set_mesh(build_test_mesh());
 
     // Main loop
     while (!glfwWindowShouldClose(window)) {

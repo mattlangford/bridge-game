@@ -29,7 +29,7 @@ struct DrawingContext {
 
 struct BuildingContext {
     /// How big each block is for rendering
-    static constexpr size_t kPxSize = 15; // px
+    static constexpr size_t kPxSize = 20; // px
     /// How big each block is for simulation
     static constexpr size_t kBlockSize = 5; // meters
 

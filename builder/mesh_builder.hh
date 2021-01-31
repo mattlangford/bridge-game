@@ -102,8 +102,8 @@ private:
         for (size_t i = 0; i < triangles_.size(); ++i) {
             const auto sixth_mass = kVolume * mass(triangles_[i].material) / 6.0;
             for (size_t index : mesh.triangles[i].indices) {
-                mesh.mass[index] = sixth_mass;
-                mesh.mass[index + 1] = sixth_mass;
+                mesh.mass[index] += sixth_mass;
+                mesh.mass[index + 1] += sixth_mass;
             }
         }
     }
