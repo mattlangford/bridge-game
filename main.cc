@@ -25,10 +25,9 @@ void print_state(EventState state)
     std::cout << "EventHandler::set_state() to '" << event_state_to_string(state) << "'\n";
 }
 
+using Clock = std::chrono::high_resolution_clock;
 void print_fps()
 {
-    using Clock = std::chrono::high_resolution_clock;
-
     // Meh, global variables here just to make it easy
     static size_t frame_counter = 0;
     static Clock::time_point last_time = Clock::now();
@@ -42,17 +41,6 @@ void print_fps()
 
         last_time = now;
     }
-}
-
-common::Mesh build_test_mesh()
-{
-    MeshBuilder builder;
-    builder.add_triangle({ 0, 1 }, { 1, 1 }, { 0, 2 }, common::Material::kBrick);
-    builder.add_triangle({ 1, 1 }, { 0, 2 }, { 1, 2 }, common::Material::kBrick);
-    builder.add_triangle({ 0, 2 }, { 1, 2 }, { 1, 3 }, common::Material::kBrick);
-    builder.add_triangle({ 1, 3 }, { 2, 2 }, { 1, 2 }, common::Material::kBrick);
-    builder.add_triangle({ 0, 1 }, { 1, 1 }, { 0, 0 }, common::Material::kStone);
-    return builder.finalize();
 }
 
 int main(int argc, char* argv[])
@@ -107,13 +95,14 @@ int main(int argc, char* argv[])
     glfwSetKeyCallback(window, route_key_callback);
 
     handler.set_state(EventState::kBuild);
-    // simulator.set_mesh(build_test_mesh());
 
     // Main loop
+    Clock::time_point last_time = Clock::now();
     while (!glfwWindowShouldClose(window)) {
         glClearColor(0.1f, 0.2f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+        auto time = Clock::now();
         auto state = handler.get_state();
         switch (state) {
         case EventState::kBuild: {
@@ -121,13 +110,15 @@ int main(int argc, char* argv[])
             break;
         }
         case EventState::kSimulate: {
-            simulator.step(1 / 60.f);
+            simulator.step(std::chrono::duration<double>(time - last_time).count());
             simulator.draw();
             break;
         }
         default:
             continue;
         }
+
+        last_time = Clock::now();
 
         glfwSwapBuffers(window);
         print_fps();

@@ -32,8 +32,8 @@ static Eigen::IOFormat CleanFmt(4, 0, ", ", "\n", "[", "]");
 DMatrix generate_D()
 {
     // As a proof of concept I'm just going to hardcode these
-    const double E = 3.7 * 1E7; // youngs modulus N/m^2 (for brick) (slightly adjusted)
-    const double v = 0.1; // poissons ratio (also for brick)
+    const double E = 30 * 1E9; // youngs modulus N/m^2 (for concrete) (slightly adjusted)
+    const double v = 0.25; // poissons ratio (also for concrete)
 
     // Comes from [1] 4.14
     Eigen::Matrix3d d;
@@ -73,7 +73,7 @@ Eigen::MatrixXd generate_mass_matrix(
 Eigen::MatrixXd generate_damping_matrix(size_t vertex_count)
 {
     // Not really sure what this should be
-    constexpr double kDampingFactor = 1000.0;
+    constexpr double kDampingFactor = 0.0;
     Eigen::MatrixXd C = Eigen::MatrixXd::Zero(vertex_count, vertex_count);
     C.diagonal().fill(kDampingFactor);
     return C;
@@ -124,7 +124,7 @@ struct SimulationContext {
 
 struct MeshStepper {
     // From [2] Table 9.3 A.4, we'll define some constants to help out later
-    static constexpr double kDt = 1.0 / 500.0;
+    static constexpr double kDt = 1.0 / 250.0;
     static constexpr double kAlpha = 0.5f;
     static constexpr double kBeta = 0.25f * (0.5f + kAlpha) * (0.5f + kAlpha);
     static constexpr double kA0 = 1.0f / (kBeta * kDt * kDt);
@@ -188,7 +188,7 @@ struct TriangleStressHelpers {
 
     void populate_local_stiffness(GlobalKMatrix& global_k) const
     {
-        static constexpr double kThickness = 5; // meters
+        static constexpr double kThickness = 1; // meters
 
         const BMatrix B = generate_B();
         const size_t num_displacements = context.state.displacements.size();
@@ -267,8 +267,8 @@ GlobalKMatrix generate_global_stiffness_matrix(const SimulationContext& context)
 
     for (size_t i = 0; i < context.mesh.triangles.size(); ++i) {
         // No processing needed if the triangle is fixed
-        // if (context.cache.fixed_triangles[i])
-        //     continue;
+        if (context.cache.fixed_triangles[i])
+            continue;
 
         TriangleStressHelpers { context.mesh.triangles[i], context }.populate_local_stiffness(K);
     }
@@ -375,7 +375,7 @@ State MeshStepper::step(SimulationContext& context)
     for (size_t i = 0; i < num_displacements; ++i) {
         double& velocity = next_state.velocities[i];
 
-        constexpr double kTerminalVelocity = 30.0;
+        constexpr double kTerminalVelocity = 100.0;
         velocity = std::clamp(velocity, -kTerminalVelocity, kTerminalVelocity);
     }
 
@@ -400,8 +400,7 @@ public:
 
         const size_t num_steps = dt / MeshStepper::kDt;
         for (size_t i = 0; i < num_steps; ++i) {
-            auto new_state = MeshStepper::step(*context);
-            context->state = new_state;
+            context->state = MeshStepper::step(*context);
         }
 
         destroy_stressful_triangles();
@@ -420,8 +419,9 @@ public:
             if (context->cache.fixed_triangles[i]) {
                 glColor3f(0.f, 0.f, 1.f);
             } else {
-                constexpr double kMaxStress = 2'000'000;
-                const double stress = compute_stress(triangle).sum();
+                constexpr double kMaxStress = 5'000'000;
+                const Eigen::Vector3d stress_v = compute_stress(triangle);
+                const double stress = stress_v.norm();
 
                 float red = static_cast<float>(stress / kMaxStress); // 0 when stress is 0, 1 when stress is high
                 float green = static_cast<float>((kMaxStress - stress) / kMaxStress); // 1 when stress is 0, 0 when stress is high
@@ -464,7 +464,7 @@ private:
             stresses.emplace_back(stress);
         }
 
-        constexpr double kMaxStress = 2'000'000;
+        constexpr double kMaxStress = 10'000'000;
         if (max_stress < kMaxStress) {
             return;
         }
@@ -493,7 +493,6 @@ private:
             displacements[2 * i] = context->get_displacement(triangle.indices[i]);
             displacements[2 * i + 1] = context->get_displacement(triangle.indices[i] + 1);
         }
-
         return generate_D() * TriangleStressHelpers { triangle, *context }.generate_B() * displacements;
     }
 
