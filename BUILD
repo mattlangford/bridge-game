@@ -3,7 +3,7 @@ cc_binary(
     srcs = ["main.cc"],
     deps = [
         "//builder",
-        ":engine",
+        "//engine:simulate",
         ":renderer",
     ]
 )
@@ -32,23 +32,10 @@ cc_library(
     visibility = ["//visibility:public"],
 )
 
-cc_library(
-    name = "engine",
-    srcs = glob(["engine/*.cc"]),
-    hdrs = glob(["engine/*.hh"]),
-    deps = [
-        ":common",
-        "@glfw//:glfw",
-        "@eigen//:eigen",
-    ],
-    visibility = ["//visibility:public"],
-)
-
 cc_test(
     name = "test",
-    srcs = ["test.cc"],
+    srcs = glob(["*.cc"]),
     deps = [
-        ":engine",
         "@gtest//:gtest",
         "@gtest//:gtest_main"
     ]

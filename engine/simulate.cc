@@ -318,12 +318,6 @@ State MeshStepper::step(SimulationContext &context) {
 // #############################################################################
 //
 
-std::vector<double> MeshStepper::evaluate_stresses() const { return {}; }
-
-//
-// #############################################################################
-//
-
 void Simulator::step(const double dt) {
     if (!context) return;
 

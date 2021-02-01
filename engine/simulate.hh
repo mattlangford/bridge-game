@@ -6,11 +6,7 @@
 #include <vector>
 
 #include "common/mesh.hh"
-
-using DMatrix = Eigen::Matrix3d;
-using BMatrix = Eigen::Matrix<double, 3, 6>;
-using GlobalKMatrix = Eigen::SparseMatrix<double>;
-using LocalKMatrix = Eigen::Matrix<double, 6, 6>;
+#include "engine/context.hh"
 
 //
 // #############################################################################
@@ -35,43 +31,6 @@ Eigen::MatrixXd generate_damping_matrix(size_t vertex_count);
 // #############################################################################
 //
 
-struct State {
-    // Displacements of the dynamic coordinates (along with per-node velocity and
-    // accel)
-    Eigen::VectorXd displacements;
-    Eigen::VectorXd velocities;
-    Eigen::VectorXd accelerations;
-};
-
-struct Cache {
-    Eigen::MatrixXd mass;
-    Eigen::MatrixXd damping;
-    Eigen::SimplicialLDLT<GlobalKMatrix> K_solver;
-
-    // Since we'll only generate displacements for non-fixed vertices, we'll need
-    // to store a mapping between mesh vertices and displacement/velocity/accel
-    // vectors
-    std::vector<size_t> vertex_to_displacements;
-
-    // Generated so we know which triangles are completely fixed
-    std::vector<bool> fixed_triangles;
-};
-
-struct SimulationContext {
-    SimulationContext(common::Mesh mesh_);
-
-    State state;
-    common::Mesh mesh;
-    Cache cache;
-
-    inline double get_displacement(size_t index) const {
-        const size_t u_index = cache.vertex_to_displacements[index];
-        return u_index >= static_cast<size_t>(state.displacements.size()) ? 0.0f : state.displacements[u_index];
-    }
-
-    inline double get_coordinate(size_t index) const { return mesh.vertices[index] + get_displacement(index); }
-};
-
 struct MeshStepper {
     // From [2] Table 9.3 A.4, we'll define some constants to help out later
     static constexpr double kDt = 1.0 / 250.0;
@@ -87,7 +46,6 @@ struct MeshStepper {
     static constexpr double kA7 = kDt * kAlpha;
 
     static State step(SimulationContext &context);
-    std::vector<double> evaluate_stresses() const;
 };
 
 struct TriangleStressHelpers {
