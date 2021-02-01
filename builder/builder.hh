@@ -52,9 +52,9 @@ class Builder {
     Builder();
 
     void setup_callbacks(EventHandler &handler);
-    void draw() const;
 
     const BuildingContext &building_context() const;
+    const DrawingContext &drawing_context() const;
 
    private:
     void set_drawing_cell(common::Material cell);

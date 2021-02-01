@@ -25,6 +25,7 @@ cc_library(
     hdrs = glob(["renderer/*.hh"]),
     deps = [
         ":common",
+        ":builder",
         "@glfw//:glfw",
         "@eigen//:eigen",
     ],
@@ -38,8 +39,6 @@ cc_library(
     deps = [
         ":common",
         ":renderer",
-        "@glfw//:glfw",
-        "@eigen//:eigen",
     ],
     defines = ["GL_SILENCE_DEPRECATION"],
 )
@@ -50,7 +49,6 @@ cc_library(
     hdrs = glob(["engine/*.hh"]),
     deps = [
         ":common",
-        ":builder",
         "@glfw//:glfw",
         "@eigen//:eigen",
     ],
