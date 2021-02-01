@@ -10,9 +10,6 @@
 #include "common/mesh.hh"
 #include "renderer/events.hh"
 
-static constexpr size_t kWidth = 1280;
-static constexpr size_t kHeight = 720;
-
 struct DrawingContext {
     /// Allows toggling between erase mode and draw mode
     bool erase_mode = false;
@@ -28,22 +25,13 @@ struct DrawingContext {
 };
 
 struct BuildingContext {
-    /// How big each block is for rendering
-    static constexpr size_t kPxSize = 20;  // px
-    /// How big each block is for simulation
-    static constexpr size_t kBlockSize = 5;  // meters
-
-    /// How many blocks there are on the screen
-    static constexpr size_t kNumWBlocks = kWidth / kPxSize;
-    static constexpr size_t kNumHBlocks = kHeight / kPxSize;
-
     /// Row major cell data starting from the bottom left
     std::vector<common::Material> data;
 
     /// Helper functions to make indexing easier
-    inline size_t index(uint16_t w_block, uint16_t h_block) const { return w_block * kNumHBlocks + h_block; }
+    inline size_t index(uint16_t w_block, uint16_t h_block) const { return w_block * common::kNumHBlocks + h_block; }
     inline std::pair<uint16_t, uint16_t> reverse_index(size_t index) const {
-        auto [q, r] = std::ldiv(index, kNumHBlocks);
+        auto [q, r] = std::ldiv(index, common::kNumHBlocks);
         return {q, r};
     }
 };

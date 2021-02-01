@@ -89,7 +89,7 @@ class MeshBuilder {
     void populate_mass(common::Mesh &mesh) const {
         mesh.mass.resize(mesh.vertices.size(), 0.0);
 
-        constexpr auto kBlockSize = BuildingContext::kBlockSize;
+        constexpr auto kBlockSize = common::kBlockSize;
         constexpr float kVolume = kBlockSize * kBlockSize * kBlockSize / 2.0;
 
         // Naively split the mass between each vertex. NOTE there are 6 vertices per

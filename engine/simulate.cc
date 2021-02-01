@@ -2,7 +2,6 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-anon-enum-enum-conversion"
 
-#include "builder/builder.hh"
 #include "engine/simulate.hh"
 
 #include <GLFW/glfw3.h>
@@ -14,6 +13,8 @@
 #include <iostream>
 #include <optional>
 #include <vector>
+
+#include "common/config.hh"
 
 static Eigen::IOFormat CleanFmt(4, 0, ", ", "\n", "[", "]");
 
@@ -85,7 +86,7 @@ double TriangleStressHelpers::y(size_t i, size_t j) const {
 // #############################################################################
 //
 
-auto TriangleStressHelpers::generate_local_to_global_mapping() const -> std::vector<LocalToGlobalKMatrixMapping>{
+auto TriangleStressHelpers::generate_local_to_global_mapping() const -> std::vector<LocalToGlobalKMatrixMapping> {
     std::vector<LocalToGlobalKMatrixMapping> mapping;
     mapping.reserve(6 * 6);
 
@@ -111,7 +112,7 @@ auto TriangleStressHelpers::generate_local_to_global_mapping() const -> std::vec
 //
 
 void TriangleStressHelpers::populate_local_stiffness(GlobalKMatrix &global_k) const {
-    static constexpr double kThickness = 1;  // meters
+    static constexpr double kThickness = common::kBlockSize;  // meters
 
     const BMatrix B = generate_B();
     const size_t num_displacements = context.state.displacements.size();
@@ -364,7 +365,7 @@ void Simulator::draw() const {
         }
 
         // constexpr float kPxPerMeter = 200;
-        constexpr float kPxPerMeter = static_cast<float>(BuildingContext::kPxSize) / BuildingContext::kBlockSize;
+        constexpr float kPxPerMeter = static_cast<float>(common::kPxSize) / common::kBlockSize;
         const auto x = [&](uint8_t i) { return kPxPerMeter * context->get_coordinate(triangle.indices[i]); };
         const auto y = [&](uint8_t i) { return kPxPerMeter * context->get_coordinate(triangle.indices[i] + 1); };
 

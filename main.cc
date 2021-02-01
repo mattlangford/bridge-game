@@ -6,6 +6,7 @@
 #include <iostream>
 
 #include "builder/mesh_builder.hh"
+#include "common/config.hh"
 #include "engine/simulate.hh"
 #include "renderer/events.hh"
 
@@ -16,7 +17,7 @@ void init_view() {
     glLoadIdentity();
 
     // this creates a canvas to do 2D drawing on
-    glOrtho(0.0, kWidth, 0.0, kHeight, 0.0, 1.0);
+    glOrtho(0.0, common::kWidth, 0.0, common::kHeight, 0.0, 1.0);
 }
 
 void print_state(EventState state) {
@@ -51,7 +52,7 @@ int main(int argc, char *argv[]) {
     }
 
     glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
-    window = glfwCreateWindow(kWidth, kHeight, "Window", NULL, NULL);
+    window = glfwCreateWindow(common::kWidth, common::kHeight, "Window", NULL, NULL);
     if (!window) {
         std::cerr << "Unable to create window!\n";
         glfwTerminate();

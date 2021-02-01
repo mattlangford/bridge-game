@@ -5,20 +5,20 @@
 
 void generate_ridge(BuildingContext &context) {
     // The bottom of the ridge
-    for (size_t w_block = 0; w_block < BuildingContext::kNumWBlocks; w_block++) {
+    for (size_t w_block = 0; w_block < common::kNumWBlocks; w_block++) {
         auto index = [&](size_t row) { return context.index(w_block, row); };
         context.data[index(0)] = common::Material::kStone;
         context.data[index(1)] = common::Material::kStone;
-        context.data[index(BuildingContext::kNumHBlocks / 2)] = common::Material::kBrick;
+        context.data[index(common::kNumHBlocks / 2)] = common::Material::kBrick;
     }
 
     // On the sides
-    for (size_t h_block = 0; h_block < BuildingContext::kNumHBlocks / 2; h_block++) {
+    for (size_t h_block = 0; h_block < common::kNumHBlocks / 2; h_block++) {
         auto index = [&](size_t col) { return context.index(col, h_block); };
         context.data[index(0)] = common::Material::kStone;
         context.data[index(1)] = common::Material::kStone;
-        context.data[index(BuildingContext::kNumWBlocks - 1)] = common::Material::kStone;
-        context.data[index(BuildingContext::kNumWBlocks - 2)] = common::Material::kStone;
+        context.data[index(common::kNumWBlocks - 1)] = common::Material::kStone;
+        context.data[index(common::kNumWBlocks - 2)] = common::Material::kStone;
     }
 }
 
@@ -28,7 +28,7 @@ void generate_ridge(BuildingContext &context) {
 
 BuildingContext generate_initial_building_context() {
     BuildingContext context;
-    context.data.resize(BuildingContext::kNumHBlocks * BuildingContext::kNumWBlocks, common::Material::kNone);
+    context.data.resize(common::kNumHBlocks * common::kNumWBlocks, common::Material::kNone);
     generate_ridge(context);
     return context;
 }
@@ -72,11 +72,11 @@ common::Mesh generate_mesh(const BuildingContext &context) {
             // Right neighbor
             add_index(this_index + 1);
             // Upper neighbor
-            add_index(this_index + BuildingContext::kNumHBlocks);
+            add_index(this_index + common::kNumHBlocks);
             // Left neighbor
             add_index(this_index - 1);
             // Bottom neighbor
-            add_index(this_index - BuildingContext::kNumHBlocks);
+            add_index(this_index - common::kNumHBlocks);
         }
 
         // Now we can go through and add the triangles to the meshes
@@ -85,11 +85,11 @@ common::Mesh generate_mesh(const BuildingContext &context) {
 
             const auto [w_block, h_block] = context.reverse_index(this_index);
 
-            const uint16_t w_m = w_block * BuildingContext::kBlockSize;
-            const uint16_t h_m = h_block * BuildingContext::kBlockSize;
+            const uint16_t w_m = w_block * common::kBlockSize;
+            const uint16_t h_m = h_block * common::kBlockSize;
 
-            const uint16_t w_end = w_m + BuildingContext::kBlockSize;
-            const uint16_t h_end = h_m + BuildingContext::kBlockSize;
+            const uint16_t w_end = w_m + common::kBlockSize;
+            const uint16_t h_end = h_m + common::kBlockSize;
 
             // top half
             builder.add_triangle({w_m, h_m}, {w_end, h_m}, {w_m, h_end}, material);
@@ -109,15 +109,15 @@ common::Mesh generate_mesh(const BuildingContext &context) {
 void draw_grid() {
     glColor3f(0.15f, 0.25f, 0.25f);
     glBegin(GL_LINES);
-    for (size_t w_block = 0; w_block < BuildingContext::kNumWBlocks; w_block++) {
-        uint16_t w_px = w_block * BuildingContext::kPxSize;
+    for (size_t w_block = 0; w_block < common::kNumWBlocks; w_block++) {
+        uint16_t w_px = w_block * common::kPxSize;
         glVertex2i(w_px, 0);
-        glVertex2i(w_px, kHeight);
+        glVertex2i(w_px, common::kHeight);
     }
-    for (size_t h_block = 0; h_block < BuildingContext::kNumHBlocks; h_block++) {
-        uint16_t h_px = h_block * BuildingContext::kPxSize;
+    for (size_t h_block = 0; h_block < common::kNumHBlocks; h_block++) {
+        uint16_t h_px = h_block * common::kPxSize;
         glVertex2i(0, h_px);
-        glVertex2i(kWidth, h_px);
+        glVertex2i(common::kWidth, h_px);
     }
     glEnd();
 }
@@ -138,17 +138,17 @@ void draw(const DrawingContext &context) {
 
     glBegin(GL_LINES);
     const auto &[w_block, h_block] = *context.mouse_block;
-    uint16_t w_px = w_block * BuildingContext::kPxSize;
-    uint16_t h_px = h_block * BuildingContext::kPxSize;
+    uint16_t w_px = w_block * common::kPxSize;
+    uint16_t h_px = h_block * common::kPxSize;
 
-    uint16_t w_end = w_px + context.cursor_zoom * BuildingContext::kPxSize;
-    uint16_t h_end = h_px + context.cursor_zoom * BuildingContext::kPxSize;
+    uint16_t w_end = w_px + context.cursor_zoom * common::kPxSize;
+    uint16_t h_end = h_px + context.cursor_zoom * common::kPxSize;
 
     // Expand the edges just a bit
     w_px = w_px <= 0 ? w_px : w_px - 1;
     h_px = h_px <= 0 ? h_px : h_px - 1;
-    w_end = w_end >= kWidth ? w_end : w_end + 1;
-    h_end = h_end >= kHeight ? h_end : h_end + 1;
+    w_end = w_end >= common::kWidth ? w_end : w_end + 1;
+    h_end = h_end >= common::kHeight ? h_end : h_end + 1;
 
     glVertex2i(w_px, h_px);   // top left
     glVertex2i(w_end, h_px);  // top right
@@ -173,8 +173,8 @@ void draw(const BuildingContext &context) {
 
     glColor3f(0.75f, 0.5f, 0.0f);
     glBegin(GL_TRIANGLES);
-    for (uint16_t w_block = 0; w_block < BuildingContext::kNumWBlocks; w_block++) {
-        for (uint16_t h_block = 0; h_block < BuildingContext::kNumHBlocks; h_block++) {
+    for (uint16_t w_block = 0; w_block < common::kNumWBlocks; w_block++) {
+        for (uint16_t h_block = 0; h_block < common::kNumHBlocks; h_block++) {
             const common::Material material = context.data[context.index(w_block, h_block)];
 
             // No need to draw when it's none
@@ -190,11 +190,11 @@ void draw(const BuildingContext &context) {
                 last_material = material;
             }
 
-            uint16_t w_px = w_block * BuildingContext::kPxSize;
-            uint16_t h_px = h_block * BuildingContext::kPxSize;
+            uint16_t w_px = w_block * common::kPxSize;
+            uint16_t h_px = h_block * common::kPxSize;
 
-            uint16_t w_end = w_px + BuildingContext::kPxSize;
-            uint16_t h_end = h_px + BuildingContext::kPxSize;
+            uint16_t w_end = w_px + common::kPxSize;
+            uint16_t h_end = h_px + common::kPxSize;
 
             // top half
             glVertex2i(w_px, h_px);   // top left
@@ -283,13 +283,13 @@ bool Builder::get_erase_mode() const { return drawing_context_.erase_mode; }
 
 void Builder::set_mouse_block(double xpos, double ypos) {
     // Don't worry about anything else here if the mouse is off screen
-    if (xpos < 0 || ypos < 0 || xpos >= kWidth || ypos >= kHeight) {
+    if (xpos < 0 || ypos < 0 || xpos >= common::kWidth || ypos >= common::kHeight) {
         drawing_context_.mouse_block = std::nullopt;
         return;
     }
 
-    uint16_t w_block = static_cast<uint16_t>(xpos) / BuildingContext::kPxSize;
-    uint16_t h_block = static_cast<uint16_t>(kHeight - ypos) / BuildingContext::kPxSize;
+    uint16_t w_block = static_cast<uint16_t>(xpos) / common::kPxSize;
+    uint16_t h_block = static_cast<uint16_t>(common::kHeight - ypos) / common::kPxSize;
     drawing_context_.mouse_block = std::make_pair(w_block, h_block);
 }
 
