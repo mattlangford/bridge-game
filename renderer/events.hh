@@ -1,6 +1,8 @@
 #pragma once
 #include <GLFW/glfw3.h>
 
+#include <chrono>
+#include <functional>
 #include <iostream>
 #include <unordered_map>
 #include <unordered_set>

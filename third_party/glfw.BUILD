@@ -165,4 +165,5 @@ cc_library(
     }),
     strip_include_prefix = "include",
     visibility = ["//visibility:public"],
+    defines = ["GL_SILENCE_DEPRECATION"],
 )

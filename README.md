@@ -2,6 +2,17 @@
 
 A little project to play around with the Finite Element Method.
 
+## Prerequisites
+### MacOS
+This is the platform I've been testing on, so it should "just work". Try:
+```
+bazel build :main
+```
+### Linux
+This should mostly "just work". Make sure to install `xorg-dev" though for xll
+```
+bazel build :main
+```
 
 ## Control
 To run:

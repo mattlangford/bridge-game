@@ -5,9 +5,10 @@
 
 #include <iostream>
 
-#include "builder/mesh_builder.hh"
+#include "builder/builder.hh"
 #include "common/config.hh"
 #include "engine/simulate.hh"
+#include "renderer/builder.hh"
 #include "renderer/events.hh"
 
 void init_view() {
@@ -103,7 +104,8 @@ int main(int argc, char *argv[]) {
         auto state = handler.get_state();
         switch (state) {
             case EventState::kBuild: {
-                builder.draw();
+                draw(builder.drawing_context());
+                draw(builder.building_context());
                 break;
             }
             case EventState::kSimulate: {

@@ -1,8 +1,9 @@
 #include "renderer/builder.hh"
-#include "common/config.hh"
-#include "builder/builder.hh"
 
 #include <GLFW/glfw3.h>
+
+#include "builder/context.hh"
+#include "common/config.hh"
 
 void draw_grid() {
     glColor3f(0.15f, 0.25f, 0.25f);

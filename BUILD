@@ -2,7 +2,7 @@ cc_binary(
     name = "main",
     srcs = ["main.cc"],
     deps = [
-        ":builder",
+        "//builder",
         ":engine",
         ":renderer",
     ]
@@ -16,7 +16,7 @@ cc_library(
         "@glfw//:glfw",
         "@eigen//:eigen",
     ],
-    defines = ["GL_SILENCE_DEPRECATION"],
+    visibility = ["//visibility:public"],
 )
 
 cc_library(
@@ -25,22 +25,11 @@ cc_library(
     hdrs = glob(["renderer/*.hh"]),
     deps = [
         ":common",
-        ":builder",
+        "//builder:context",
         "@glfw//:glfw",
         "@eigen//:eigen",
     ],
-    defines = ["GL_SILENCE_DEPRECATION"],
-)
-
-cc_library(
-    name = "builder",
-    srcs = glob(["builder/*.cc"]),
-    hdrs = glob(["builder/*.hh"]),
-    deps = [
-        ":common",
-        ":renderer",
-    ],
-    defines = ["GL_SILENCE_DEPRECATION"],
+    visibility = ["//visibility:public"],
 )
 
 cc_library(
@@ -52,7 +41,7 @@ cc_library(
         "@glfw//:glfw",
         "@eigen//:eigen",
     ],
-    defines = ["GL_SILENCE_DEPRECATION"],
+    visibility = ["//visibility:public"],
 )
 
 cc_test(
