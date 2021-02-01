@@ -6,11 +6,15 @@ A little project to play around with the Finite Element Method.
 ### MacOS
 This is the platform I've been testing on, so it should "just work". Try:
 ```
+brew install bazel
 bazel build :main
 ```
 ### Linux
 This should mostly "just work". Make sure to install `xorg-dev" though for xll
 ```
+sudo apt-get install bazel
+sudo apt-get install clang
+sudo apt-get install xorg-dev
 bazel build :main
 ```
 
