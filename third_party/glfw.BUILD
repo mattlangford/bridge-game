@@ -47,7 +47,14 @@ LINUX_SRCS = [
     "src/x11_window.c",
 ]
 
-LINUX_LINKOPTS = []
+LINUX_LINKOPTS = [
+    "-lGL",
+    "-lXrandr",
+    "-lXext",
+    "-lX11",
+    "-ldl",
+    "-lpthread",
+]
 
 DARWIN_DEFINES = [
     "_GLFW_COCOA",

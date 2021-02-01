@@ -1,7 +1,3 @@
-// Seems like a bug in Eigen requires us to ignore this warning
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-anon-enum-enum-conversion"
-
 #include "engine/simulate.hh"
 
 #include <GLFW/glfw3.h>
@@ -437,5 +433,3 @@ Eigen::Vector3d Simulator::compute_stress(const common::Triangle &triangle) cons
     }
     return generate_D() * TriangleStressHelpers{triangle, *context}.generate_B() * displacements;
 }
-
-#pragma clang diagnostic pop
