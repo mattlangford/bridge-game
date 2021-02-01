@@ -40,13 +40,13 @@ double mass(const Material &c) {
 // #############################################################################
 //
 
-double youngs_modulus(const Material &c) { return 3.7 * 1E5; }
+double youngs_modulus(const Material &) { return 3.7 * 1E5; }
 
 //
 // #############################################################################
 //
 
-double poissons_ration(const Material &c) { return 0.1; }
+double poissons_ration(const Material &) { return 0.1; }
 
 //
 // #############################################################################

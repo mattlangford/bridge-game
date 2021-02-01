@@ -249,7 +249,7 @@ void EventHandler::cursor_position_callback(GLFWwindow *window, double xpos, dou
 // #############################################################################
 //
 
-void EventHandler::key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
+void EventHandler::key_callback(GLFWwindow *window, int key, int, int action, int mods) {
     mods_ = mods;
 
     for (const auto &handler : handlers_[state_]) {

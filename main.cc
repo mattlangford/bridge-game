@@ -42,7 +42,7 @@ void print_fps() {
     }
 }
 
-int main(int argc, char *argv[]) {
+int main() {
     EventHandler handler;
 
     GLFWwindow *window;
@@ -72,7 +72,7 @@ int main(int argc, char *argv[]) {
     // should be fine.
     handler.add_state_callback(&print_state);
     handler.add().key(GLFW_KEY_ESCAPE, [](GLFWwindow *window, int) { glfwSetWindowShouldClose(window, 1); });
-    handler.add().key(GLFW_KEY_SPACE, [&](GLFWwindow *window, int) {
+    handler.add().key(GLFW_KEY_SPACE, [&](GLFWwindow *, int) {
         auto state = handler.get_state();
         switch (state) {
             case EventState::kInit:

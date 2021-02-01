@@ -2,8 +2,8 @@
 
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
-#include <vector>
 #include <memory>
+#include <vector>
 
 #include "common/mesh.hh"
 
@@ -66,7 +66,7 @@ struct SimulationContext {
 
     inline double get_displacement(size_t index) const {
         const size_t u_index = cache.vertex_to_displacements[index];
-        return u_index >= state.displacements.size() ? 0.0f : state.displacements[u_index];
+        return u_index >= static_cast<size_t>(state.displacements.size()) ? 0.0f : state.displacements[u_index];
     }
 
     inline double get_coordinate(size_t index) const { return mesh.vertices[index] + get_displacement(index); }

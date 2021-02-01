@@ -144,7 +144,7 @@ void Builder::setup_callbacks(EventHandler &handler) {
     handler.add(EventState::kBuild).any_modifier().left_click([this](GLFWwindow *) {
         set_cell_at_mouse_block(get_drawing_cell());
     });
-    handler.add(EventState::kBuild).hold().any_modifier().move([this](GLFWwindow *, double xpos, double ypos) {
+    handler.add(EventState::kBuild).hold().any_modifier().move([this](GLFWwindow *, double, double) {
         set_cell_at_mouse_block(get_drawing_cell());
     });
 }
