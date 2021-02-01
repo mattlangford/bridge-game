@@ -50,6 +50,7 @@ cc_library(
     hdrs = glob(["engine/*.hh"]),
     deps = [
         ":common",
+        ":builder",
         "@glfw//:glfw",
         "@eigen//:eigen",
     ],
