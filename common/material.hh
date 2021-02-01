@@ -6,10 +6,10 @@
 namespace common {
 
 enum class Material : uint8_t {
-  kNone = 0,
-  kBrick = 1,
-  kStone = 2,
-  kRoad = 3,
+    kNone = 0,
+    kBrick = 1,
+    kStone = 2,
+    kRoad = 3,
 };
 
 ///
@@ -37,4 +37,4 @@ double poissons_ration(const Material &c);
 /// @brief Should we consider this material to be immoveable
 ///
 bool fixed(const Material &c);
-} // namespace common
+}  // namespace common
