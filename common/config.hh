@@ -8,7 +8,7 @@ static constexpr size_t kHeight = 720;
 /// How big each block is for rendering
 static constexpr size_t kPxSize = 20;  // px
 /// How big each block is for simulation
-static constexpr size_t kBlockSize = 5;  // meters
+static constexpr size_t kBlockSize = 1;  // meters
 
 /// How many blocks there are on the screen
 static constexpr size_t kNumWBlocks = kWidth / kPxSize;

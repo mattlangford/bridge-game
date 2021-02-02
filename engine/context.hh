@@ -15,6 +15,7 @@ using LocalKMatrix = Eigen::Matrix<double, 6, 6>;
 /// @brief Current state of the system. This will hold per-point displacements, velocities, and accelerations
 ///
 struct State {
+    size_t num_nodes = 0;
     Eigen::VectorXd displacements;
     Eigen::VectorXd velocities;
     Eigen::VectorXd accelerations;
@@ -27,6 +28,7 @@ struct Cache {
     /// Terms used when computing displacements
     Eigen::MatrixXd mass;
     Eigen::MatrixXd damping;
+    GlobalKMatrix K;
     Eigen::SimplicialLDLT<GlobalKMatrix> K_solver;
 
     /// Since we'll only generate displacements for non-fixed vertices, we'll need

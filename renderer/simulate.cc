@@ -1,16 +1,16 @@
+#include "renderer/simulate.hh"
+
 #include <GLFW/glfw3.h>
 
-#include "renderer/simulate.hh"
-#include "engine/context.hh"
 #include "common/config.hh"
+#include "engine/context.hh"
 
-void draw(const SimulationContext& context)
-{
+void draw(const SimulationContext& context) {
     const auto& cache = context.cache;
     const auto& mesh = context.mesh;
 
     for (size_t i = 0; i < mesh.triangles.size(); ++i) {
-        const common::Triangle &triangle = mesh.triangles[i];
+        const common::Triangle& triangle = mesh.triangles[i];
 
         glBegin(GL_TRIANGLES);
 
@@ -19,7 +19,7 @@ void draw(const SimulationContext& context)
         } else {
             const double stress = cache.triangle_stresses.row(i).norm();
 
-            constexpr float kMaxStress = 5'000'00;
+            constexpr float kMaxStress = 10'000;
             float red = static_cast<float>(stress / kMaxStress);  // 0 when stress is 0, 1 when stress is high
             float green =
                 static_cast<float>((kMaxStress - stress) / kMaxStress);  // 1 when stress is 0, 0 when stress is high

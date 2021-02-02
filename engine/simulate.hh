@@ -33,7 +33,7 @@ Eigen::MatrixXd generate_damping_matrix(size_t vertex_count);
 
 struct MeshStepper {
     // From [2] Table 9.3 A.4, we'll define some constants to help out later
-    static constexpr double kDt = 1.0 / 250.0;
+    static constexpr double kDt = 1.0 / 500.0;
     static constexpr double kAlpha = 0.5f;
     static constexpr double kBeta = 0.25f * (0.5f + kAlpha) * (0.5f + kAlpha);
     static constexpr double kA0 = 1.0f / (kBeta * kDt * kDt);
@@ -82,7 +82,7 @@ class Simulator {
     void step(const double dt);
 
     void set_mesh(common::Mesh mesh);
-    const SimulationContext* simulation_context() const;
+    const SimulationContext *simulation_context() const;
 
    private:
     void destroy_stressful_triangles();

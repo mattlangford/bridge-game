@@ -4,7 +4,7 @@ import sys
 
 np.set_printoptions(suppress=True, edgeitems=10, linewidth=100000)
 
-E = 3.7 * 1E5
+E = 3.7 * 1E7
 v = 0.1
 m = 50 * 3.1
 c = 0
@@ -32,6 +32,18 @@ coords = np.array([
     3, 0,
     4, 1,
     4, 0,
+    5, 1,
+    5, 0,
+    6, 1,
+    6, 0,
+    7, 1,
+    7, 0,
+    8, 1,
+    8, 0,
+    9, 1,
+    9, 0,
+    10, 1,
+    10, 0,
 ], dtype=np.float64)
 
 C = c * np.eye(len(coords))
@@ -39,6 +51,18 @@ C = c * np.eye(len(coords))
 fixed = np.array([
     1, 1,
     1, 1,
+    0, 0,
+    0, 0,
+    0, 0,
+    0, 0,
+    0, 0,
+    0, 0,
+    0, 0,
+    0, 0,
+    0, 0,
+    0, 0,
+    0, 0,
+    0, 0,
     0, 0,
     0, 0,
     0, 0,
@@ -63,8 +87,8 @@ def get_triangles(from_i, to_i):
         l.append(get_triangle(i, i + 1, i + 2))
     return l
 
-triangles = get_triangles(0, 8)
-print (triangles)
+triangles = get_triangles(0, 20)
+print (triangles, len(fixed))
 u = np.zeros_like(coords)
 u_dot = np.zeros_like(u)
 u_dot_dot = np.zeros_like(u)
@@ -238,15 +262,15 @@ def draw_triangles(u):
 
         plt.fill((x1, x2, x3), (y1, y2, y3), facecolor=(red, green, 0.0), edgecolor="black", linewidth=1, zorder=-10)
 
-    plt.quiver(points[::2], points[1::2], forces[::2], forces[1::2], color="red")
+    plt.quiver(points[::2], points[1::2], forces[::2], forces[1::2], color="black")
     plt.scatter(points[::2], points[1::2])
 
 
 def draw(i, u):
     plt.clf()
     print (f"Saving frame {i}")
-    plt.xlim(0, 5)
-    plt.ylim(-3, 2)
+    plt.xlim(min(coords[::2]), max(coords[::2]) + 1)
+    plt.ylim(min(coords[1::2]) - 2, max(coords[1::2] + 2))
     draw_triangles(u)
 
     if isinstance(i, int):

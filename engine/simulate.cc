@@ -20,8 +20,8 @@ static Eigen::IOFormat CleanFmt(4, 0, ", ", "\n", "[", "]");
 
 DMatrix generate_D() {
     // As a proof of concept I'm just going to hardcode these
-    const double E = 30 * 1E9;  // youngs modulus N/m^2 (for concrete) (slightly adjusted)
-    const double v = 0.25;      // poissons ratio (also for concrete)
+    const double E = 3.7 * 1E7;  // youngs modulus N/m^2
+    const double v = 0.1;        // poissons ratio
 
     // Comes from [1] 4.14
     Eigen::Matrix3d d;
@@ -223,6 +223,7 @@ SimulationContext::SimulationContext(common::Mesh mesh_) {
         num_dynamic_displacements++;
     }
 
+    state.num_nodes = num_dynamic_displacements;
     state.displacements = Eigen::VectorXd::Zero(num_dynamic_displacements);
     state.velocities = Eigen::VectorXd::Zero(num_dynamic_displacements);
     state.accelerations = Eigen::VectorXd::Zero(num_dynamic_displacements);
@@ -251,13 +252,10 @@ SimulationContext::SimulationContext(common::Mesh mesh_) {
     cache.mass = generate_mass_matrix(num_dynamic_displacements, cache.vertex_to_displacements, mesh.mass);
     cache.damping = generate_damping_matrix(num_dynamic_displacements);
 
-    GlobalKMatrix K = generate_global_stiffness_matrix(*this);
+    cache.K = generate_global_stiffness_matrix(*this);
 
-    // [2] Table 9.3 A.5
-    K = K + MeshStepper::kA0 * cache.mass + MeshStepper::kA1 * cache.damping;
-
-    // [2] Table 9.3 A.6
-    cache.K_solver.compute(K);
+    // [2] Table 9.3 A.5/6
+    cache.K_solver.compute(cache.K + MeshStepper::kA0 * cache.mass + MeshStepper::kA1 * cache.damping);
     if (cache.K_solver.info() != Eigen::Success) {
         throw std::runtime_error("Decomposition Failed!");
     }
@@ -301,6 +299,7 @@ State MeshStepper::step(SimulationContext &context) {
     next_state.displacements = std::move(U_next);
     next_state.velocities = std::move(U_vel_next);
     next_state.accelerations = std::move(U_accel_next);
+    next_state.num_nodes = static_cast<size_t>(next_state.displacements.size());
 
     // To avoid numerical issues with things moving too quickly, we'll impose a
     // max velocity
@@ -326,26 +325,39 @@ void Simulator::step(const double dt) {
         context->state = MeshStepper::step(*context);
     }
 
-    destroy_stressful_triangles();
+    // destroy_stressful_triangles();
 
     // Populate the stresses at the very end
-    const auto& triangles = context->mesh.triangles;
-    auto& triangle_stresses = context->cache.triangle_stresses;
+    const auto &triangles = context->mesh.triangles;
+    auto &triangle_stresses = context->cache.triangle_stresses;
     triangle_stresses.resize(triangles.size(), 3);
     triangle_stresses.setZero();
     for (size_t i = 0; i < triangles.size(); ++i) {
         triangle_stresses.row(i) = compute_stress(triangles[i]);
     }
+
+    // Compute total energy, this should always be close to 0
+    const auto &state = context->state;
+    const auto &mass = context->cache.mass;
+    const double kinetic = 0.5 * state.velocities.transpose() * mass * state.velocities;
+    const double strain = 0.5 * state.displacements.transpose() * context->cache.K * state.displacements;
+    double gravity = 0;
+    for (size_t i = 1; i < state.num_nodes; i += 2) {
+        gravity += -9.8 * mass.diagonal()[i] * -state.displacements[i];
+    }
+    const double total_energy = kinetic + strain + gravity;
+    if (total_energy > 1E-3)
+    {
+        std::cout << "Total energy is too high (>1E-3): " << total_energy << "\n";
+    }
+
 }
 
 //
 // #############################################################################
 //
 
-const SimulationContext* Simulator::simulation_context() const
-{
-    return context.get();
-}
+const SimulationContext *Simulator::simulation_context() const { return context.get(); }
 
 //
 // #############################################################################

@@ -180,6 +180,8 @@ void Builder::set_cell_at_mouse_block(const common::Material &new_cell, bool for
     const auto &[w_block, h_block] = *drawing_context_.mouse_block;
     for (size_t w = 0; w < drawing_context_.cursor_zoom; ++w) {
         for (size_t h = 0; h < drawing_context_.cursor_zoom; ++h) {
+            if (common::kPxSize * (w_block + w) >= common::kWidth) continue;
+            if (common::kPxSize * (h_block + h) >= common::kHeight) continue;
             common::Material &cell = building_context_.data[building_context_.index(w_block + w, h_block + h)];
             if (cell != common::Material::kStone || force) {
                 cell = new_cell;

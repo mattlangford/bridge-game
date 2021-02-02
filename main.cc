@@ -111,8 +111,7 @@ int main() {
             }
             case EventState::kSimulate: {
                 simulator.step(std::chrono::duration<double>(time - last_time).count());
-                if (auto ptr = simulator.simulation_context())
-                    draw(*ptr);
+                if (auto ptr = simulator.simulation_context()) draw(*ptr);
                 break;
             }
             default:
