@@ -10,6 +10,7 @@
 #include "engine/simulate.hh"
 #include "renderer/builder.hh"
 #include "renderer/events.hh"
+#include "renderer/simulate.hh"
 
 void init_view() {
     // set up view
@@ -110,7 +111,8 @@ int main() {
             }
             case EventState::kSimulate: {
                 simulator.step(std::chrono::duration<double>(time - last_time).count());
-                simulator.draw();
+                if (auto ptr = simulator.simulation_context())
+                    draw(*ptr);
                 break;
             }
             default:

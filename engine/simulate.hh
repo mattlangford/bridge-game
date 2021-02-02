@@ -81,9 +81,8 @@ class Simulator {
    public:
     void step(const double dt);
 
-    void draw() const;
-
     void set_mesh(common::Mesh mesh);
+    const SimulationContext* simulation_context() const;
 
    private:
     void destroy_stressful_triangles();

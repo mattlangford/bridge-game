@@ -327,50 +327,24 @@ void Simulator::step(const double dt) {
     }
 
     destroy_stressful_triangles();
+
+    // Populate the stresses at the very end
+    const auto& triangles = context->mesh.triangles;
+    auto& triangle_stresses = context->cache.triangle_stresses;
+    triangle_stresses.resize(triangles.size(), 3);
+    triangle_stresses.setZero();
+    for (size_t i = 0; i < triangles.size(); ++i) {
+        triangle_stresses.row(i) = compute_stress(triangles[i]);
+    }
 }
 
 //
 // #############################################################################
 //
 
-void Simulator::draw() const {
-    if (!context) return;
-
-    for (size_t i = 0; i < context->mesh.triangles.size(); ++i) {
-        glBegin(GL_TRIANGLES);
-
-        const common::Triangle &triangle = context->mesh.triangles[i];
-
-        if (context->cache.fixed_triangles[i]) {
-            glColor3f(0.f, 0.f, 1.f);
-        } else {
-            constexpr double kMaxStress = 5'000'000;
-            const Eigen::Vector3d stress_v = compute_stress(triangle);
-            const double stress = stress_v.norm();
-
-            float red = static_cast<float>(stress / kMaxStress);  // 0 when stress is 0, 1 when stress is high
-            float green =
-                static_cast<float>((kMaxStress - stress) / kMaxStress);  // 1 when stress is 0, 0 when stress is high
-            glColor3f(std::clamp(red, 0.f, 1.f), std::clamp(green, 0.f, 1.f), 0.0f);
-        }
-
-        // constexpr float kPxPerMeter = 200;
-        constexpr float kPxPerMeter = static_cast<float>(common::kPxSize) / common::kBlockSize;
-        const auto x = [&](uint8_t i) { return kPxPerMeter * context->get_coordinate(triangle.indices[i]); };
-        const auto y = [&](uint8_t i) { return kPxPerMeter * context->get_coordinate(triangle.indices[i] + 1); };
-
-        glVertex2f(x(0), y(0));
-        glVertex2f(x(1), y(1));
-        glVertex2f(x(2), y(2));
-        glEnd();
-
-        glBegin(GL_LINE_LOOP);
-        glColor3f(0.1f, 0.1f, 0.1f);
-        glVertex2f(x(0), y(0));
-        glVertex2f(x(1), y(1));
-        glVertex2f(x(2), y(2));
-        glEnd();
-    }
+const SimulationContext* Simulator::simulation_context() const
+{
+    return context.get();
 }
 
 //
@@ -393,7 +367,7 @@ void Simulator::destroy_stressful_triangles() {
         stresses.emplace_back(stress);
     }
 
-    constexpr double kMaxStress = 10'000'000;
+    constexpr double kMaxStress = 5'000'000;
     if (max_stress < kMaxStress) {
         return;
     }

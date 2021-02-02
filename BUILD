@@ -26,6 +26,7 @@ cc_library(
     deps = [
         ":common",
         "//builder:context",
+        "//engine:context",
         "@glfw//:glfw",
         "@eigen//:eigen",
     ],

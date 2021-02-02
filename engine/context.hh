@@ -24,17 +24,21 @@ struct State {
 /// @brief Precomputed cache to speed up the main dynamics loop
 ///
 struct Cache {
+    /// Terms used when computing displacements
     Eigen::MatrixXd mass;
     Eigen::MatrixXd damping;
     Eigen::SimplicialLDLT<GlobalKMatrix> K_solver;
 
-    // Since we'll only generate displacements for non-fixed vertices, we'll need
-    // to store a mapping between mesh vertices and displacement/velocity/accel
-    // vectors
+    /// Since we'll only generate displacements for non-fixed vertices, we'll need
+    /// to store a mapping between mesh vertices and displacement/velocity/accel
+    /// vectors
     std::vector<size_t> vertex_to_displacements;
 
-    // Generated so we know which triangles are completely fixed
+    /// Generated so we know which triangles we can skip while processing
     std::vector<bool> fixed_triangles;
+
+    /// Final triangle stresses from each step. For each triangle there is X, Y, shear
+    Eigen::Matrix<double, Eigen::Dynamic, 3> triangle_stresses;
 };
 
 ///
