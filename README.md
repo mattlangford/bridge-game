@@ -31,6 +31,14 @@ The UI should launch and will allow you to:
 
 When you press the space-bar, the simulation will start. Bricks that are under too much stress will be destroyed. Pressing the space-bar again will go back to building mode.
 
+## Python Testing
+There is a python testing utility in `python/testing.py` which simulates a simple structure and saves off images of the displacements. Run the following commands:
+```
+rm /tmp/*.png; python3 python/testing.py
+ffmpeg -framerate 30 -pattern_type glob -i '/tmp/*.png' -c:v libx264 -pix_fmt yuv420p /tmp/out.mp4 -y
+```
+Then view the video at `/tmp/out.mp4`. This also produces `/tmp/00_init.png` and `/tmp/00_steady.png` which show the initial configuration and steady state solution.
+
 ## Notes
  - The game is a work in progress without too much testing, so your mileage may very
  - I haven't tested on other platforms besides my Mac

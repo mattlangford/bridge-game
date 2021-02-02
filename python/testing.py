@@ -6,7 +6,7 @@ np.set_printoptions(suppress=True, edgeitems=10, linewidth=100000)
 E = 3.7 * 1E5
 v = 0.1
 m = 50 * 3.1
-c = 10000
+c = 0
 
 # Relates stress to strain
 D = np.array([
@@ -209,8 +209,6 @@ def update(iteration):
     u_next_nonfixed += M_nonfixed.dot(a_0 * u_nonfixed + a_2 * u_dot_nonfixed + a_3 * u_dot_dot_nonfixed)
     u_next_nonfixed += C_nonfixed.dot(a_1 * u_nonfixed + a_4 * u_dot_nonfixed + a_5 * u_dot_dot_nonfixed)
 
-    forces = generate_full_vector(u_next_nonfixed, np.zeros_like(u))
-
     u_next_nonfixed = np.linalg.inv(K_nonfixed).dot(u_next_nonfixed)
 
     u_dot_dot_next_nonfixed = a_0 * (u_next_nonfixed - u_nonfixed) - a_2 * u_dot_nonfixed - a_3 * u_dot_dot_nonfixed
@@ -220,50 +218,59 @@ def update(iteration):
     u_dot = generate_full_vector(u_dot_next_nonfixed, np.zeros_like(u_dot))
     u_dot_dot = generate_full_vector(u_dot_dot_next_nonfixed, np.zeros_like(u_dot_dot))
 
+K = K()
+M = M()
 
-    for i, v in enumerate(u_dot):
-        terminal_velocity = 40
-        if abs(v) > terminal_velocity:
-            u_dot[i] = min(max(v, -terminal_velocity), terminal_velocity)
+def draw_triangles(u):
+    points = coords + u
+    forces = M.dot(u_dot_dot)
 
-    return forces
-
-def draw_triangles(points):
     for triangle in triangles:
         x1, y1, x2, y2, x3, y3 = points[triangle]
-        plt.plot((x1, x2, x3, x1), (y1, y2, y3, y1))
 
-def draw(i, points, forces):
+        stresses = D.dot(b(triangle)).dot(u[triangle])
+        stress = np.linalg.norm(stresses)
+
+        def color(c):
+            return max(min(c, 1.0), 0.0)
+        max_stress = 100000
+        red = color(stress / max_stress)
+        green = color((max_stress - stress) / max_stress)
+
+        plt.fill((x1, x2, x3), (y1, y2, y3), facecolor=(red, green, 0.0), edgecolor="black", linewidth=1, zorder=-10)
+
+    plt.quiver(points[::2], points[1::2], forces[::2], forces[1::2], color="red")
+    plt.scatter(points[::2], points[1::2])
+
+
+def draw(i, u):
     plt.clf()
     print (f"Saving frame {i}")
     plt.xlim(0, 5)
     plt.ylim(-3, 2)
-    draw_triangles(points)
+    draw_triangles(u)
 
-    plt.quiver(points[::2], points[1::2], forces[::2], forces[1::2])
-    plt.scatter(points[::2], points[1::2])
-    plt.savefig(f"/tmp/{i:07}.png")
+    if isinstance(i, int):
+        plt.savefig(f"/tmp/{i:07}.png")
+    else:
+        plt.savefig(f"/tmp/{i}.png")
 
-K = K()
-M = M()
-
+draw("00_init", u)
 gravity = np.zeros_like(u)
 for i in range(len(gravity)):
     if i % 2 != 0:
         gravity[i] = -9.8 * M[i, i]
 ref_u = generate_full_vector(np.linalg.inv(generate_nonfixed_matrix(K)).dot(generate_nonfixed_vector(gravity)), np.zeros_like(u))
-draw(0, coords + ref_u, K.dot(ref_u))
+draw("00_steady", ref_u)
 
 i = 1
 while True:
     print (f"Generating frame {i}")
-    forces = update(i)
+    update(i)
 
-    points = coords + u
     print (f"u: {u}")
-    print (f"vertex: {points[10]}, {points[11]}")
 
     if i % int(1 / 30 * fps) == 0:
-        draw(i, points, forces)
+        draw(i, u)
 
     i += 1
