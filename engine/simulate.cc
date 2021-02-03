@@ -335,16 +335,17 @@ void Simulator::step(const double dt) {
     }
 
     // Compute total energy, this should always be close to 0
-    const auto &state = context->state;
-    const auto &mass = context->cache.mass;
-    const double kinetic = 0.5 * state.velocities.transpose() * mass * state.velocities;
-    const double strain = 0.5 * state.displacements.transpose() * context->cache.K * state.displacements;
-    double gravity = 0;
-    for (size_t i = 1; i < state.num_nodes; i += 2) {
-        gravity += -9.8 * mass.diagonal()[i] * -state.displacements[i];
-    }
-    const double total_energy = kinetic + strain + gravity;
-    // std::cout << "Total energy : " << total_energy << "\n";
+    // const auto &state = context->state;
+    // const auto &mass = context->cache.mass;
+    // const double kinetic = 0.5 * state.velocities.transpose() * mass * state.velocities;
+    // const double strain = 0.5 * state.displacements.transpose() * context->cache.K * state.displacements;
+    // double gravity = 0;
+    // for (size_t i = 1; i < state.num_nodes; i += 2) {
+    //     gravity += -9.8 * mass.diagonal()[i] * -state.displacements[i];
+    // }
+    // const double total_energy = kinetic + strain + gravity;
+    // std::cout << "Total energy : " << total_energy << " (KE:" << kinetic << ", gPE: " << gravity << ", sPE: " <<
+    // strain << ")\n";
 }
 
 //
@@ -364,34 +365,51 @@ void Simulator::set_mesh(common::Mesh mesh) { context = std::make_unique<Simulat
 //
 
 void Simulator::destroy_stressful_triangles() {
-    std::vector<double> stress_percents;
-    stress_percents.reserve(context->mesh.triangles.size());
-    double max_stress_percent = 0;
-    for (const auto &triangle : context->mesh.triangles) {
-        double stress_percent = compute_stress(triangle).norm() / common::get_properties(triangle.material).max_stress;
-        max_stress_percent = std::max(max_stress_percent, stress_percent);
-        stress_percents.emplace_back(stress_percent);
+    std::vector<size_t> too_stressful;
+    for (size_t i = 0; i < context->mesh.triangles.size(); ++i) {
+        const auto &triangle = context->mesh.triangles[i];
+        double stress = compute_stress(triangle).norm();
+        if (stress > common::get_properties(triangle.material).max_stress) {
+            too_stressful.push_back(i);
+        }
     }
 
-    if (max_stress_percent < 1.0) {
+    if (too_stressful.empty()) {
         return;
     }
 
-    std::vector<common::Triangle> triangles;
-    triangles.reserve(context->mesh.triangles.size());
-
-    auto previous_state = context->state;
-    for (size_t i = 0; i < context->mesh.triangles.size(); ++i) {
-        if (stress_percents[i] < 1.0) {
-            triangles.emplace_back(context->mesh.triangles[i]);
-        }
-    }
-    context->mesh.triangles = std::move(triangles);
-
     // Using set_mesh will reset the displacements/velocities/accelerations so
     // we need to make sure to record them and reuse them for the next iteration
+    auto previous_state = std::move(context->state);
+    auto previous_vertex_to_displacements = std::move(context->cache.vertex_to_displacements);
+
+    auto mapping = common::remove_triangles(too_stressful, context->mesh);
     set_mesh(std::move(context->mesh));
-    context->state = std::move(previous_state);
+
+    for (size_t from = 0; from < mapping.size(); ++from) {
+        // Was this a dynamic vertex from the previous cycle? If not there will be no displacements
+        const size_t dynamic_from = previous_vertex_to_displacements[from];
+        if (dynamic_from >= previous_state.num_nodes) {
+            continue;
+        }
+
+        // Was this vertex kept? If not we don't have to worry about it
+        const size_t to = mapping[from];
+        if (to >= context->mesh.vertices.size()) {
+            continue;
+        }
+
+        // Is the kept vertex a dynamic index? If not there is nowhere to put it. If this passed the "dynamic_from"
+        // check then it should generally pass this one as well.
+        size_t dynamic_to = context->cache.vertex_to_displacements[to];
+        if (dynamic_to >= context->state.num_nodes) {
+            continue;
+        }
+
+        context->state.displacements[dynamic_to] = previous_state.displacements[dynamic_from];
+        context->state.velocities[dynamic_to] = previous_state.velocities[dynamic_from];
+        context->state.accelerations[dynamic_to] = previous_state.accelerations[dynamic_from];
+    }
 }
 
 //
