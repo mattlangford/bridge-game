@@ -96,29 +96,25 @@ int main() {
     handler.set_state(EventState::kBuild);
 
     // Main loop
-    Clock::time_point last_time = Clock::now();
     while (!glfwWindowShouldClose(window)) {
         glClearColor(0.1f, 0.2f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        auto time = Clock::now();
         auto state = handler.get_state();
         switch (state) {
             case EventState::kBuild: {
-                draw(builder.drawing_context());
                 draw(builder.building_context());
+                draw(builder.drawing_context());
                 break;
             }
             case EventState::kSimulate: {
-                simulator.step(std::chrono::duration<double>(time - last_time).count());
+                simulator.step(1 / 60.f);
                 if (auto ptr = simulator.simulation_context()) draw(*ptr);
                 break;
             }
             default:
                 continue;
         }
-
-        last_time = Clock::now();
 
         glfwSwapBuffers(window);
         print_fps();

@@ -96,7 +96,7 @@ class MeshBuilder {
         // triangle (x1, y1, x2, y2, x3, y3) This could probably be improved by
         // integrating over the area of the triangles.
         for (size_t i = 0; i < triangles_.size(); ++i) {
-            const auto sixth_mass = kVolume * mass(triangles_[i].material) / 6.0;
+            const auto sixth_mass = kVolume * common::get_properties(triangles_[i].material).mass_density / 6.0;
             for (size_t index : mesh.triangles[i].indices) {
                 mesh.mass[index] += sixth_mass;
                 mesh.mass[index + 1] += sixth_mass;

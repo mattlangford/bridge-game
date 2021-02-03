@@ -12,12 +12,6 @@
 // #############################################################################
 //
 
-DMatrix generate_D();
-
-//
-// #############################################################################
-//
-
 Eigen::MatrixXd generate_mass_matrix(size_t num_displacements, const std::vector<size_t> &vertex_to_displacements,
                                      const std::vector<double> &mass);
 
@@ -69,6 +63,8 @@ struct TriangleStressHelpers {
     BMatrix generate_B() const;
 
     double area() const;
+
+    DMatrix generate_D() const;
 };
 
 GlobalKMatrix generate_global_stiffness_matrix(const SimulationContext &context);

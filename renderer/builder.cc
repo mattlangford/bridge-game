@@ -83,7 +83,7 @@ void draw(const BuildingContext &context) {
 
             // Only update the drawing color if the material changes
             if (material != last_material) {
-                const auto [r, g, b] = common::color(material);
+                const auto &[r, g, b] = common::get_properties(material).color;
                 glColor3f(r, g, b);
 
                 last_material = material;

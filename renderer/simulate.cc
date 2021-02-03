@@ -3,6 +3,7 @@
 #include <GLFW/glfw3.h>
 
 #include "common/config.hh"
+#include "common/material.hh"
 #include "engine/context.hh"
 
 void draw(const SimulationContext& context) {
@@ -19,10 +20,13 @@ void draw(const SimulationContext& context) {
         } else {
             const double stress = cache.triangle_stresses.row(i).norm();
 
-            constexpr float kMaxStress = 10'000;
-            float red = static_cast<float>(stress / kMaxStress);  // 0 when stress is 0, 1 when stress is high
-            float green =
-                static_cast<float>((kMaxStress - stress) / kMaxStress);  // 1 when stress is 0, 0 when stress is high
+            // Here we scale the actual max stress down a bit so it turns bright red before breaking
+            const float max_stress = 0.9 * common::get_properties(triangle.material).max_stress;
+
+            // 0 when stress is 0, 1 when stress is high
+            const float red = static_cast<float>(stress / max_stress);
+            // 1 when stress is 0, 0 when stress is high
+            const float green = static_cast<float>((max_stress - stress) / max_stress);
             glColor3f(std::clamp(red, 0.f, 1.f), std::clamp(green, 0.f, 1.f), 0.0f);
         }
 

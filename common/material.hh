@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string_view>
 #include <tuple>
 
 namespace common {
@@ -12,29 +13,32 @@ enum class Material : uint8_t {
     kRoad = 3,
 };
 
-///
-/// @brief Get (r,g,b) for the color of the material. Each entry will be between
-/// 0.0f and 1.0f
-///
-std::tuple<float, float, float> color(const Material &c);
+struct Properties {
+    /// Name of the material, like "road"
+    std::string_view name;
+
+    /// RGB color of the material
+    std::tuple<float, float, float> color;
+
+    /// Mass density of the material in units of kg/m^3
+    double mass_density;
+
+    /// Essentially the modulus of elasticity of the material, Measured in N/m^2, higher numbers mean stiffer materials
+    double youngs_modulus;
+
+    /// Describes how strains in one dimension cause strains in the other. Unitless
+    double poissons_ratio;
+
+    /// Maximum total stress before breaking. Measured in N/m^2.
+    /// TODO: This should be split up between compressive and tensile stress
+    double max_stress;
+
+    /// Should this material be treated as fixed for the physics simulation
+    bool fixed;
+};
 
 ///
-/// @brief Get mass in units of kg/m^3
+/// @brief Fetch the properties for the given material
 ///
-double mass(const Material &c);
-
-///
-/// @brief Get youngs modulus for the material in N/M^2
-///
-double youngs_modulus(const Material &c);
-
-///
-/// @brief Get poissons ratio (unitless)
-///
-double poissons_ration(const Material &c);
-
-///
-/// @brief Should we consider this material to be immoveable
-///
-bool fixed(const Material &c);
+const Properties& get_properties(const Material& m);
 }  // namespace common

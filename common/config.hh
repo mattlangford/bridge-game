@@ -1,5 +1,7 @@
 #pragma once
 
+#include "common/material.hh"
+
 namespace common {
 /// Canvas size
 static constexpr size_t kWidth = 1280;
@@ -13,4 +15,49 @@ static constexpr size_t kBlockSize = 1;  // meters
 /// How many blocks there are on the screen
 static constexpr size_t kNumWBlocks = kWidth / kPxSize;
 static constexpr size_t kNumHBlocks = kHeight / kPxSize;
+
+/// Triangle destruction is a bit buggy at the moment, so only enable it for testing
+static constexpr bool kEnableTriangleDestruction = false;
+
+/// Used for the damping matrix, I'm not sure the units here
+static constexpr double kDampingFactor = 0.0;
+
+/// Definitions for material properties
+inline Properties get_brick_properties() {
+    Properties prop;
+    prop.name = "prop";
+    prop.color = {0.75f, 0.5f, 0.0f};
+    // Assume 50 props per m^3 and 3.1kg per prop
+    prop.mass_density = 50.0 * 3.1;
+    prop.youngs_modulus = 3.7 * 1E8;
+    prop.poissons_ratio = 0.1;
+    prop.max_stress = 1'000'000;
+    prop.fixed = false;
+    return prop;
+}
+inline Properties get_stone_properties() {
+    Properties prop;
+    prop.name = "prop";
+    prop.color = {0.4f, 0.4f, 0.5f};
+    prop.fixed = true;
+
+    // Generally these should be unused
+    prop.mass_density = 0.0;
+    prop.youngs_modulus = 0.0;
+    prop.poissons_ratio = 0.0;
+    prop.max_stress = 0.0;
+    return prop;
+}
+inline Properties get_road_properties() {
+    Properties prop;
+    prop.name = "road";
+    prop.color = {0.1f, 0.1f, 0.1f};
+    // Copying the values for prop for now
+    prop.mass_density = 50.0 * 3.1;
+    prop.youngs_modulus = 3.7 * 1E8;
+    prop.poissons_ratio = 0.1;
+    prop.max_stress = 5'000'000;
+    prop.fixed = false;
+    return prop;
+}
 }  // namespace common

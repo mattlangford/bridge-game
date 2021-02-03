@@ -18,26 +18,6 @@ static Eigen::IOFormat CleanFmt(4, 0, ", ", "\n", "[", "]");
 // #############################################################################
 //
 
-DMatrix generate_D() {
-    // As a proof of concept I'm just going to hardcode these
-    const double E = 3.7 * 1E7;  // youngs modulus N/m^2
-    const double v = 0.1;        // poissons ratio
-
-    // Comes from [1] 4.14
-    Eigen::Matrix3d d;
-    // clang-format off
-    d << 1.0,   v, 0.0,
-           v, 1.0, 0.0,
-         0.0, 0.0, (1.0 - v) / 2.0;
-    // clang-format on
-
-    return d * E / (1.0 - v * v);
-}
-
-//
-// #############################################################################
-//
-
 Eigen::MatrixXd generate_mass_matrix(size_t num_displacements, const std::vector<size_t> &vertex_to_displacements,
                                      const std::vector<double> &mass) {
     Eigen::MatrixXd M = Eigen::MatrixXd::Zero(num_displacements, num_displacements);
@@ -56,10 +36,8 @@ Eigen::MatrixXd generate_mass_matrix(size_t num_displacements, const std::vector
 //
 
 Eigen::MatrixXd generate_damping_matrix(size_t vertex_count) {
-    // Not really sure what this should be
-    constexpr double kDampingFactor = 0.0;
     Eigen::MatrixXd C = Eigen::MatrixXd::Zero(vertex_count, vertex_count);
-    C.diagonal().fill(kDampingFactor);
+    C.diagonal().fill(common::kDampingFactor);
     return C;
 }
 
@@ -181,6 +159,26 @@ BMatrix TriangleStressHelpers::generate_B() const {
 double TriangleStressHelpers::area() const {
     // From [1] 4.70, I'm keeping the indices one-indexed like they do
     return 0.5f * abs(x(1, 3) * y(2, 3) - y(1, 3) * x(2, 3));
+}
+
+//
+// #############################################################################
+//
+
+DMatrix TriangleStressHelpers::generate_D() const {
+    const auto &properties = common::get_properties(triangle.material);
+    const double E = properties.youngs_modulus;
+    const double v = properties.poissons_ratio;
+
+    // Comes from [1] 4.14
+    Eigen::Matrix3d d;
+    // clang-format off
+    d << 1.0,   v, 0.0,
+           v, 1.0, 0.0,
+         0.0, 0.0, (1.0 - v) / 2.0;
+    // clang-format on
+
+    return d * E / (1.0 - v * v);
 }
 
 //
@@ -325,7 +323,9 @@ void Simulator::step(const double dt) {
         context->state = MeshStepper::step(*context);
     }
 
-    // destroy_stressful_triangles();
+    if (common::kEnableTriangleDestruction) {
+        destroy_stressful_triangles();
+    }
 
     // Populate the stresses at the very end
     const auto &triangles = context->mesh.triangles;
@@ -346,11 +346,9 @@ void Simulator::step(const double dt) {
         gravity += -9.8 * mass.diagonal()[i] * -state.displacements[i];
     }
     const double total_energy = kinetic + strain + gravity;
-    if (total_energy > 1E-3)
-    {
+    if (total_energy > 1E-3) {
         std::cout << "Total energy is too high (>1E-3): " << total_energy << "\n";
     }
-
 }
 
 //
@@ -370,17 +368,16 @@ void Simulator::set_mesh(common::Mesh mesh) { context = std::make_unique<Simulat
 //
 
 void Simulator::destroy_stressful_triangles() {
-    std::vector<double> stresses;
-    stresses.reserve(context->mesh.triangles.size());
-    double max_stress = 0;
+    std::vector<double> stress_percents;
+    stress_percents.reserve(context->mesh.triangles.size());
+    double max_stress_percent = 0;
     for (const auto &triangle : context->mesh.triangles) {
-        double stress = compute_stress(triangle).norm();
-        max_stress = std::max(max_stress, stress);
-        stresses.emplace_back(stress);
+        double stress_percent = compute_stress(triangle).norm() / common::get_properties(triangle.material).max_stress;
+        max_stress_percent = std::max(max_stress_percent, stress_percent);
+        stress_percents.emplace_back(stress_percent);
     }
 
-    constexpr double kMaxStress = 5'000'000;
-    if (max_stress < kMaxStress) {
+    if (max_stress_percent < 1.0) {
         return;
     }
 
@@ -389,7 +386,7 @@ void Simulator::destroy_stressful_triangles() {
 
     auto previous_state = context->state;
     for (size_t i = 0; i < context->mesh.triangles.size(); ++i) {
-        if (stresses[i] < kMaxStress) {
+        if (stress_percents[i] < 1.0) {
             triangles.emplace_back(context->mesh.triangles[i]);
         }
     }
@@ -411,5 +408,6 @@ Eigen::Vector3d Simulator::compute_stress(const common::Triangle &triangle) cons
         displacements[2 * i] = context->get_displacement(triangle.indices[i]);
         displacements[2 * i + 1] = context->get_displacement(triangle.indices[i] + 1);
     }
-    return generate_D() * TriangleStressHelpers{triangle, *context}.generate_B() * displacements;
+    TriangleStressHelpers helper{triangle, *context};
+    return helper.generate_D() * helper.generate_B() * displacements;
 }
