@@ -33,7 +33,7 @@ static constexpr double kTerminalVelocity = 100.0;
 /// Definitions for material properties
 inline Properties get_brick_properties() {
     Properties prop;
-    prop.name = "prop";
+    prop.name = "brick";
     prop.color = {0.75f, 0.5f, 0.0f};
     // Assume 50 props per m^3 and 3.1kg per prop
     prop.mass_density = 50.0 * 3.1;
@@ -45,7 +45,7 @@ inline Properties get_brick_properties() {
 }
 inline Properties get_stone_properties() {
     Properties prop;
-    prop.name = "prop";
+    prop.name = "stone";
     prop.color = {0.4f, 0.4f, 0.5f};
     prop.fixed = true;
 
