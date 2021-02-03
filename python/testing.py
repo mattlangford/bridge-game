@@ -197,7 +197,8 @@ def generate_nonfixed_vector(full_vector):
 def compute_energy(u, u_dot):
     kinetic_energy = 0.5 * u_dot.transpose().dot(M).dot(u_dot)
     strain_potential_energy = 0.5 * u.transpose().dot(K).dot(u)
-    gravitational_potential_energy = -9.8 * np.sum(M.dot(-u)[1::2])
+    gravitational_potential_energy = 9.8 * np.sum(M.dot(u)[1::2])
+    print (strain_potential_energy, gravitational_potential_energy)
     return kinetic_energy + strain_potential_energy + gravitational_potential_energy
 
 def update(iteration):
