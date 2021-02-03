@@ -108,7 +108,7 @@ int main() {
                 break;
             }
             case EventState::kSimulate: {
-                simulator.step(1 / 60.f);
+                simulator.step(common::kRenderDt);
                 if (auto ptr = simulator.simulation_context()) draw(*ptr);
                 break;
             }

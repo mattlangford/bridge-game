@@ -7,6 +7,11 @@ namespace common {
 static constexpr size_t kWidth = 1280;
 static constexpr size_t kHeight = 720;
 
+/// Each simulation update will progress forward by this amount
+static constexpr double kSimulationDt = 1.0 / 600.0;
+/// Every frame will be this far apart in time (by calling the simulation update multiple times)
+static constexpr double kRenderDt = 1.0 / 60.0;
+
 /// How big each block is for rendering
 static constexpr size_t kPxSize = 20;  // px
 /// How big each block is for simulation
@@ -21,6 +26,9 @@ static constexpr bool kEnableTriangleDestruction = false;
 
 /// Used for the damping matrix, I'm not sure the units here
 static constexpr double kDampingFactor = 0.0;
+
+/// Max speed for falling objects, used to fix numerical issues with very rapidly moving objects
+static constexpr double kTerminalVelocity = 100.0;
 
 /// Definitions for material properties
 inline Properties get_brick_properties() {

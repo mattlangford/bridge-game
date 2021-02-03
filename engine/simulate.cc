@@ -303,9 +303,7 @@ State MeshStepper::step(SimulationContext &context) {
     // max velocity
     for (size_t i = 0; i < num_displacements; ++i) {
         double &velocity = next_state.velocities[i];
-
-        constexpr double kTerminalVelocity = 100.0;
-        velocity = std::clamp(velocity, -kTerminalVelocity, kTerminalVelocity);
+        velocity = std::clamp(velocity, -common::kTerminalVelocity, common::kTerminalVelocity);
     }
 
     return next_state;
