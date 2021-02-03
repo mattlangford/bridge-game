@@ -35,8 +35,10 @@ cc_library(
 
 cc_test(
     name = "test",
-    srcs = glob(["*.cc"]),
+    srcs = glob(["common/test/*.cc"]),
     deps = [
+        ":common",
+        "//builder:builder",
         "@gtest//:gtest",
         "@gtest//:gtest_main"
     ]

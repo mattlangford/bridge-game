@@ -53,7 +53,7 @@ inline Properties get_stone_properties() {
     prop.mass_density = 0.0;
     prop.youngs_modulus = 0.0;
     prop.poissons_ratio = 0.0;
-    prop.max_stress = 0.0;
+    prop.max_stress = 1E10;
     return prop;
 }
 inline Properties get_road_properties() {

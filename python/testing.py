@@ -28,22 +28,6 @@ coords = np.array([
     1, 0,
     2, 1,
     2, 0,
-    3, 1,
-    3, 0,
-    4, 1,
-    4, 0,
-    5, 1,
-    5, 0,
-    6, 1,
-    6, 0,
-    7, 1,
-    7, 0,
-    8, 1,
-    8, 0,
-    9, 1,
-    9, 0,
-    10, 1,
-    10, 0,
 ], dtype=np.float64)
 
 C = c * np.eye(len(coords))
@@ -51,22 +35,6 @@ C = c * np.eye(len(coords))
 fixed = np.array([
     1, 1,
     1, 1,
-    0, 0,
-    0, 0,
-    0, 0,
-    0, 0,
-    0, 0,
-    0, 0,
-    0, 0,
-    0, 0,
-    0, 0,
-    0, 0,
-    0, 0,
-    0, 0,
-    0, 0,
-    0, 0,
-    0, 0,
-    0, 0,
     0, 0,
     0, 0,
     0, 0,
@@ -87,7 +55,11 @@ def get_triangles(from_i, to_i):
         l.append(get_triangle(i, i + 1, i + 2))
     return l
 
-triangles = get_triangles(0, 20)
+triangles = [
+    get_triangle(0, 1, 2),
+    get_triangle(1, 2, 3),
+    get_triangle(3, 4, 5),
+]
 print (triangles, len(fixed))
 u = np.zeros_like(coords)
 u_dot = np.zeros_like(u)
@@ -143,6 +115,7 @@ def k(triangle):
     thickness = 1
     b_ = b(triangle)
     k = thickness * area(triangle) * b_.T.dot(D).dot(b_)
+    print (abs(np.linalg.eig(k)[0]))
     return k
 
 def K():
@@ -302,6 +275,8 @@ if __name__ == "__main__":
         update(i)
         print (f"Total Energy at {i}:", compute_energy(u, u_dot))
 
+
+        k(triangles[-1])
         print (f"u: {u}")
 
         if i % int(1 / 30 * fps) == 0:

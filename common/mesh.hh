@@ -50,4 +50,10 @@ struct Mesh {
     ///
     std::vector<double> mass;
 };
+
+///
+/// @brief Remove vertices that have no triangles associated with them.
+/// @returns A mapping from old to new indices, where the ith element is the new vertex index (or -1 if removed)
+///
+std::vector<size_t> remove_orphaned_vertices(Mesh& mesh);
 }  // namespace common

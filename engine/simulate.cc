@@ -344,9 +344,7 @@ void Simulator::step(const double dt) {
         gravity += -9.8 * mass.diagonal()[i] * -state.displacements[i];
     }
     const double total_energy = kinetic + strain + gravity;
-    if (total_energy > 1E-3) {
-        std::cout << "Total energy is too high (>1E-3): " << total_energy << "\n";
-    }
+    // std::cout << "Total energy : " << total_energy << "\n";
 }
 
 //

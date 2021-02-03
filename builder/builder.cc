@@ -55,8 +55,7 @@ common::Mesh generate_mesh(const BuildingContext &context) {
             return emplaced;
         };
 
-        // If this first one fails we've either already visited this node or it's
-        // none
+        // If this first one fails we've either visited this node or it's kNone
         if (!add_index(index)) {
             continue;
         }
