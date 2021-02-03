@@ -47,4 +47,29 @@ TEST(Mesh, remove_orphaned_vertices) {
     EXPECT_EQ(mesh.mass.size(), 0);
     EXPECT_THAT(mapping, testing::ElementsAre(-1, -1, -1, -1, -1, -1));
 }
+
+//
+// #############################################################################
+//
+
+TEST(Mesh, remove_triangles) {
+    MeshBuilder builder;
+    builder.add_triangle({0, 0}, {1, 1}, {2, 2}, Material::kBrick);
+    builder.add_triangle({1, 1}, {2, 2}, {3, 3}, Material::kStone);
+    builder.add_triangle({2, 2}, {3, 3}, {4, 4}, Material::kStone);
+
+    auto mesh = builder.finalize();
+    EXPECT_EQ(mesh.vertices.size(), 10);
+    EXPECT_EQ(mesh.fixed.size(), 10);
+    EXPECT_EQ(mesh.mass.size(), 10);
+
+    ASSERT_EQ(mesh.triangles.size(), 3);
+    auto mapping = remove_triangles({0, 2}, mesh);
+    ASSERT_EQ(mesh.triangles.size(), 1);
+
+    EXPECT_EQ(mesh.vertices.size(), 6);
+    EXPECT_EQ(mesh.fixed.size(), 6);
+    EXPECT_EQ(mesh.mass.size(), 6);
+    EXPECT_THAT(mapping, testing::ElementsAre(-1, -1, 0, 1, 2, 3, 4, 5, -1, -1));
+}
 }  // namespace common

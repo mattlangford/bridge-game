@@ -52,4 +52,17 @@ std::vector<size_t> remove_orphaned_vertices(Mesh& mesh) {
 
     return results;
 }
+
+//
+// #############################################################################
+//
+
+std::vector<size_t> remove_triangles(std::vector<size_t> triangle_indices, Mesh& mesh) {
+    std::sort(triangle_indices.begin(), triangle_indices.end());
+    for (auto i = triangle_indices.rbegin(); i != triangle_indices.rend(); ++i) {
+        mesh.triangles.erase(mesh.triangles.begin() + *i);
+    }
+
+    return remove_orphaned_vertices(mesh);
+}
 }  // namespace common
