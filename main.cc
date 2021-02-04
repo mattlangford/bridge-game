@@ -89,6 +89,9 @@ int main() {
                                [&](EventState) { simulator.set_mesh(generate_mesh(builder.building_context())); });
     builder.setup_callbacks(handler);
 
+    bool step = true;
+    handler.add().key(GLFW_KEY_P, [&](GLFWwindow *, int) { step = !step; });
+
     glfwSetMouseButtonCallback(window, route_mouse_button_callback);
     glfwSetCursorPosCallback(window, route_cursor_position_callback);
     glfwSetKeyCallback(window, route_key_callback);
@@ -108,7 +111,8 @@ int main() {
                 break;
             }
             case EventState::kSimulate: {
-                simulator.step(common::kRenderDt);
+                if (step) simulator.step(common::kRenderDt);
+                // step = false;
                 if (auto ptr = simulator.simulation_context()) draw(*ptr);
                 break;
             }

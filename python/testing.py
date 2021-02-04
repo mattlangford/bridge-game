@@ -4,10 +4,10 @@ import sys
 
 np.set_printoptions(suppress=True, edgeitems=10, linewidth=100000)
 
-E = 3.7 * 1E7
+E = 3.7 * 1E6
 v = 0.1
 m = 50 * 3.1
-c = 0
+c = 1.0
 
 # Relates stress to strain
 D = np.array([
@@ -28,6 +28,12 @@ coords = np.array([
     1, 0,
     2, 1,
     2, 0,
+    3, 1,
+    3, 0,
+    4, 1,
+    4, 0,
+    5, 1,
+    5, 0,
 ], dtype=np.float64)
 
 C = c * np.eye(len(coords))
@@ -35,6 +41,12 @@ C = c * np.eye(len(coords))
 fixed = np.array([
     1, 1,
     1, 1,
+    0, 0,
+    0, 0,
+    0, 0,
+    0, 0,
+    0, 0,
+    0, 0,
     0, 0,
     0, 0,
     0, 0,
@@ -55,12 +67,7 @@ def get_triangles(from_i, to_i):
         l.append(get_triangle(i, i + 1, i + 2))
     return l
 
-triangles = [
-    get_triangle(0, 1, 2),
-    get_triangle(1, 2, 3),
-    get_triangle(3, 4, 5),
-]
-print (triangles, len(fixed))
+triangles = get_triangles(0, int(len(fixed) / 2 - 2))
 u = np.zeros_like(coords)
 u_dot = np.zeros_like(u)
 u_dot_dot = np.zeros_like(u)
@@ -76,7 +83,7 @@ def M():
     return M
 
 def area(triangle):
-    displacements = coords[triangle] + u[triangle]
+    displacements = coords[triangle]# + u[triangle]
 
     def x(i, j):
         i -= 1
@@ -115,17 +122,14 @@ def k(triangle):
     thickness = 1
     b_ = b(triangle)
     k = thickness * area(triangle) * b_.T.dot(D).dot(b_)
-    print (abs(np.linalg.eig(k)[0]))
     return k
 
-def K():
+def gen_K():
     K = np.zeros([len(coords), len(coords)])
     for i, triangle in enumerate(triangles):
         local_k = k(triangle)
         for row in range(6):
             for col in range(6):
-                if fixed[triangle[col]] or fixed[triangle[row]]:
-                    continue
                 K[triangle[col], triangle[row]] += local_k[row, col]
     return K
 
@@ -171,10 +175,9 @@ def compute_energy(u, u_dot):
     kinetic_energy = 0.5 * u_dot.transpose().dot(M).dot(u_dot)
     strain_potential_energy = 0.5 * u.transpose().dot(K).dot(u)
     gravitational_potential_energy = 9.8 * np.sum(M.dot(u)[1::2])
-    print (strain_potential_energy, gravitational_potential_energy)
     return kinetic_energy + strain_potential_energy + gravitational_potential_energy
 
-def update(iteration):
+def update_newmark(iteration):
     global u, u_dot, u_dot_dot
     K_nonfixed = generate_nonfixed_matrix(K)
     M_nonfixed = generate_nonfixed_matrix(M)
@@ -186,36 +189,48 @@ def update(iteration):
     alpha = 0.5
     beta = 0.25 * (0.5 + alpha) ** 2.0
 
-    a_0 = 1.0 / (beta * dt2)
-    a_1 = alpha / (beta * dt)
-    a_2 = 1.0 / (beta * dt)
-    a_3 = 1.0 / (2.0 * beta) - 1.0
-    a_4 = alpha / beta - 1.0
-    a_5 = (dt / 2.0) * (alpha / beta - 2.0)
-    a_6 = dt * (1.0 - alpha)
-    a_7 = alpha * dt
+    n_1 = u_dot_nonfixed + (1 - alpha) * dt * u_dot_dot_nonfixed
+    n_2 = u_nonfixed + u_dot_nonfixed * dt + (0.5 - beta) * dt * dt * u_dot_dot_nonfixed
 
-    K_nonfixed = K_nonfixed + a_0 * M_nonfixed + a_1 * C_nonfixed
+    gravity = np.array([0 if i % 2 == 0 else -9.8 * M_nonfixed[i, i] for i in range(len(u_nonfixed))])
+    rhs = gravity + M_nonfixed.dot(n_2 / (beta * dt2)) - C_nonfixed.dot(n_1 - n_2 * alpha / beta)
 
-    gravity = np.zeros_like(u_nonfixed)
-    for i in range(len(gravity)):
-        if i % 2 != 0:
-            gravity[i] = -9.8 * M_nonfixed[i, i]
+    u_next = np.linalg.inv(M_nonfixed / (beta * dt2) + C_nonfixed * alpha / (beta * dt) + K_nonfixed).dot(rhs)
+    u_dot_dot_next = (u_next - n_2) / (beta * dt2)
+    u_dot_next = n_1 + alpha * u_dot_dot_next * dt
 
-    u_next_nonfixed = np.copy(gravity)
-    u_next_nonfixed += M_nonfixed.dot(a_0 * u_nonfixed + a_2 * u_dot_nonfixed + a_3 * u_dot_dot_nonfixed)
-    u_next_nonfixed += C_nonfixed.dot(a_1 * u_nonfixed + a_4 * u_dot_nonfixed + a_5 * u_dot_dot_nonfixed)
+    u = generate_full_vector(u_next, np.zeros_like(u))
+    u_dot = generate_full_vector(u_dot_next, np.zeros_like(u_dot))
+    u_dot_dot = generate_full_vector(u_dot_dot_next, np.zeros_like(u_dot_dot))
 
-    u_next_nonfixed = np.linalg.inv(K_nonfixed).dot(u_next_nonfixed)
+def update_hht(iteration):
+    global u, u_dot, u_dot_dot
+    K_nonfixed = generate_nonfixed_matrix(gen_K())
+    M_nonfixed = generate_nonfixed_matrix(M)
+    C_nonfixed = generate_nonfixed_matrix(C)
+    u_nonfixed = generate_nonfixed_vector(u)
+    u_dot_nonfixed = generate_nonfixed_vector(u_dot)
+    u_dot_dot_nonfixed = generate_nonfixed_vector(u_dot_dot)
 
-    u_dot_dot_next_nonfixed = a_0 * (u_next_nonfixed - u_nonfixed) - a_2 * u_dot_nonfixed - a_3 * u_dot_dot_nonfixed
-    u_dot_next_nonfixed = u_dot_nonfixed + a_6 * u_dot_dot_nonfixed + a_7 * u_dot_dot_next_nonfixed
+    alpha = 0.0#-1 / 3.0
+    gamma = 0.5 * (1 - 2 * alpha)
+    beta = 0.25 * (1 - alpha) ** 2
 
-    u = generate_full_vector(u_next_nonfixed, np.zeros_like(u))
-    u_dot = generate_full_vector(u_dot_next_nonfixed, np.zeros_like(u_dot))
-    u_dot_dot = generate_full_vector(u_dot_dot_next_nonfixed, np.zeros_like(u_dot_dot))
+    n_1 = u_nonfixed + u_dot_nonfixed * dt + (0.5 - beta) * dt2 * u_dot_dot_nonfixed
+    n_2 = u_dot_nonfixed + (1 - gamma) * dt * u_dot_dot_nonfixed
 
-K = K()
+    gravity = np.array([0 if i % 2 == 0 else -9.8 * M_nonfixed[i, i] for i in range(len(u_nonfixed))])
+    rhs = gravity + M_nonfixed.dot(n_1 / (beta * dt2)) - (1 + alpha) * C_nonfixed.dot(n_2 - n_1 * gamma / (beta + dt)) + alpha * C_nonfixed.dot(u_dot_nonfixed) + alpha * K_nonfixed.dot(u_nonfixed)
+
+    u_next = np.linalg.inv(M_nonfixed / (beta * dt2) + (1 + alpha) * C_nonfixed * gamma / (beta * dt) + (1 + alpha) * K_nonfixed).dot(rhs)
+    u_dot_dot_next = (u_next - n_1) / (beta * dt2)
+    u_dot_next = n_2 + gamma * u_dot_dot_next * dt
+
+    u = generate_full_vector(u_next, np.zeros_like(u))
+    u_dot = generate_full_vector(u_dot_next, np.zeros_like(u_dot))
+    u_dot_dot = generate_full_vector(u_dot_dot_next, np.zeros_like(u_dot_dot))
+
+K = gen_K()
 M = M()
 
 def draw_triangles(u):
@@ -239,6 +254,27 @@ def draw_triangles(u):
     plt.quiver(points[::2], points[1::2], forces[::2], forces[1::2], color="black")
     plt.scatter(points[::2], points[1::2])
 
+def draw_k_matrix():
+    points = coords + u
+    max_element = np.max(K)
+    for from_i in range(len(coords))[::2]:
+        for to_i in range(len(coords))[::2]:
+            if from_i == to_i: continue
+            if abs(K[from_i, to_i]) < 1E-3: continue
+
+            from_x = points[from_i]
+            from_y = points[from_i + 1]
+            to_x = points[to_i]
+            to_y = points[to_i + 1]
+
+            # print (f"element: {K[from_i, to_i]}, at from: {from_i} ({from_x}, {from_y}, to: {to_i}, {to_x}, {to_y}")
+
+            element = abs(K[from_i, to_i])
+            color = (element / max_element, element / max_element, 0.5)
+            plt.plot((from_x, to_x), (from_y, to_y), color=color, linewidth=2)
+
+    plt.scatter(points[::2], points[1::2])
+
 
 def draw(i, u):
     plt.clf()
@@ -246,16 +282,15 @@ def draw(i, u):
     plt.xlim(min(coords[::2]), max(coords[::2]) + 1)
     plt.ylim(min(coords[1::2]) - 2, max(coords[1::2] + 2))
     draw_triangles(u)
+    draw_k_matrix()
 
     if isinstance(i, int):
         plt.savefig(f"/tmp/{i:07}.png")
     else:
         plt.savefig(f"/tmp/{i}.png")
 
-
 if __name__ == "__main__":
     draw("00_init", u)
-    print ("Initial energy:", compute_energy(u, np.zeros_like(u)))
 
     gravity = np.zeros_like(u)
     for i in range(len(gravity)):
@@ -264,19 +299,19 @@ if __name__ == "__main__":
 
     ref_u = generate_full_vector(np.linalg.inv(generate_nonfixed_matrix(K)).dot(generate_nonfixed_vector(gravity)), np.zeros_like(u))
     draw("00_steady", ref_u)
-    print ("Steady energy:", compute_energy(ref_u, np.zeros_like(u)))
 
     max_i = 5000
     if len(sys.argv) == 2:
         max_i = int(sys.argv[1])
 
+    initial_energy = None
+
     for i in range(max_i):
         print (f"Generating frame {i}")
-        update(i)
-        print (f"Total Energy at {i}:", compute_energy(u, u_dot))
-
-
-        k(triangles[-1])
+        update_newmark(i)
+        if initial_energy is None:
+            initial_energy = compute_energy(u, u_dot)
+        print (f"Total Energy: initial: {initial_energy}, at {i}: {compute_energy(u, u_dot)}", )
         print (f"u: {u}")
 
         if i % int(1 / 30 * fps) == 0:

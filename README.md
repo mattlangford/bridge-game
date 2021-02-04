@@ -43,7 +43,14 @@ Then view the video at `/tmp/out.mp4`. This also produces `/tmp/00_init.png` and
  - The game is a work in progress without too much testing, so your mileage may very
  - I haven't tested on other platforms besides my Mac
 
+## TODO
+ - Pause simulation
+ - Damping but have freefalling triangles look good
+ - Road with car driving on top
+ - Click on a triangle and see per cycle info on it
+
 ## Sources
 [1] http://www.unm.edu/~bgreen/ME360/2D%20Triangular%20Elements.pdf
 
 [2] http://web.mit.edu/kjb/www/Books/FEP_2nd_Edition_4th_Printing.pdf
+

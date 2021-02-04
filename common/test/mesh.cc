@@ -8,6 +8,9 @@
 namespace common {
 
 TEST(Mesh, remove_orphaned_vertices) {
+    Mesh empty_mesh;
+    EXPECT_TRUE(remove_orphaned_vertices(empty_mesh).empty());
+
     MeshBuilder builder;
     builder.add_triangle({0, 0}, {1, 1}, {2, 2}, Material::kBrick);
     builder.add_triangle({1, 1}, {2, 2}, {3, 3}, Material::kStone);
@@ -53,6 +56,9 @@ TEST(Mesh, remove_orphaned_vertices) {
 //
 
 TEST(Mesh, remove_triangles) {
+    Mesh empty_mesh;
+    EXPECT_TRUE(remove_triangles({}, empty_mesh).empty());
+
     MeshBuilder builder;
     builder.add_triangle({0, 0}, {1, 1}, {2, 2}, Material::kBrick);
     builder.add_triangle({1, 1}, {2, 2}, {3, 3}, Material::kStone);

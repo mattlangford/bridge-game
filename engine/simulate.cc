@@ -155,6 +155,17 @@ BMatrix TriangleStressHelpers::generate_B() const {
 //
 
 double TriangleStressHelpers::area() const {
+    // Don't include the displacements, effectively calculating the initial area
+    auto x = [&](size_t i, size_t j){
+        auto i_coord = context.mesh.vertices[triangle.indices[i - 1]];
+        auto j_coord = context.mesh.vertices[triangle.indices[j - 1]];
+        return i_coord - j_coord;
+    };
+    auto y = [&](size_t i, size_t j){
+        auto i_coord = context.mesh.vertices[triangle.indices[i] + 1];
+        auto j_coord = context.mesh.vertices[triangle.indices[j] + 1];
+        return i_coord - j_coord;
+    };
     // From [1] 4.70, I'm keeping the indices one-indexed like they do
     return 0.5f * abs(x(1, 3) * y(2, 3) - y(1, 3) * x(2, 3));
 }
@@ -371,9 +382,11 @@ void Simulator::destroy_stressful_triangles() {
         }
     }
 
-    if (too_stressful.empty()) {
-        return;
-    }
+    // TODO: This would be nice, but then it gets weird how we call set_mesh()
+    // if (too_stressful.empty()) {
+    //     set_mesh(std::move(context->mesh));
+    //     return;
+    // }
 
     // Using set_mesh will reset the displacements/velocities/accelerations so
     // we need to make sure to record them and reuse them for the next iteration
@@ -383,7 +396,7 @@ void Simulator::destroy_stressful_triangles() {
     auto mapping = common::remove_triangles(too_stressful, context->mesh);
     set_mesh(std::move(context->mesh));
 
-    for (auto [to, from] : it::enumerate(mapping)) {
+    for (auto [from, to] : it::enumerate(mapping)) {
         // Was this vertex kept? If not we don't have to worry about it
         if (to >= context->mesh.vertices.size()) {
             continue;

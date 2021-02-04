@@ -27,7 +27,7 @@ std::vector<size_t> remove_orphaned_vertices(Mesh& mesh) {
 
     // Generate the mapping between old vertices and new vertices and populate the vertex level mesh data
     std::vector<size_t> results(mesh.vertices.size(), -1);
-    for (size_t from = 0, to = 0; from <= mesh.vertices.size(); ++from) {
+    for (size_t from = 0, to = 0; from < mesh.vertices.size(); ++from) {
         if (!to_keep[from]) {
             continue;
         }

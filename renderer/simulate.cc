@@ -46,4 +46,37 @@ void draw(const SimulationContext& context) {
         glVertex2f(x(2), y(2));
         glEnd();
     }
+    return;
+
+    double max = context.cache.K.coeffs().maxCoeff();
+    glBegin(GL_LINES);
+    std::cout << Eigen::MatrixXd(context.cache.K) << "\n";
+    for (size_t from = 0; from < mesh.vertices.size(); from+=2)
+    {
+        auto d_from = cache.vertex_to_displacements[from];
+        if (d_from >= context.state.num_nodes) continue;
+        for (size_t to = 0; to < mesh.vertices.size(); to+=2)
+        {
+            auto d_to = cache.vertex_to_displacements[to];
+            if (d_to >= context.state.num_nodes) continue;
+
+            if (d_from == d_to) continue;
+            const double element = abs(context.cache.K.coeff(d_from, d_to));
+            if (element < 1E-3) continue;
+
+            constexpr float kPxPerMeter = static_cast<float>(common::kPxSize) / common::kBlockSize;
+            float start_x = kPxPerMeter * context.get_coordinate(from);
+            float start_y = kPxPerMeter * context.get_coordinate(from + 1);
+            float end_x = kPxPerMeter * context.get_coordinate(to);
+            float end_y = kPxPerMeter * context.get_coordinate(to + 1);
+
+            float color = element / max;
+            glColor3f(color, color, color);
+            std::cout << "from: " << d_from << " to: " << d_to << " start: " << start_x << ", " << start_y << " to end: " << end_x << ", " <<  end_y << " mag: " << element <<"\n";
+            glVertex2f(start_x, start_y);
+            glVertex2f(end_x, end_y);
+        }
+    }
+    glEnd();
+    std::cout << "==============\n";
 }
