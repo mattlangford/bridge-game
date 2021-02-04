@@ -1,7 +1,5 @@
 #include "engine/simulate.hh"
 
-#include <GLFW/glfw3.h>
-
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 #include <chrono>
@@ -11,6 +9,7 @@
 #include <vector>
 
 #include "common/config.hh"
+#include "iterate.hh"
 
 static Eigen::IOFormat CleanFmt(4, 0, ", ", "\n", "[", "]");
 
@@ -22,10 +21,9 @@ Eigen::MatrixXd generate_mass_matrix(size_t num_displacements, const std::vector
                                      const std::vector<double> &mass) {
     Eigen::MatrixXd M = Eigen::MatrixXd::Zero(num_displacements, num_displacements);
     M.setZero();
-    for (size_t i = 0; i < mass.size(); ++i) {
-        const size_t index = vertex_to_displacements[i];
+    for (auto [index, mass] : it::zip(vertex_to_displacements, mass)) {
         if (index < num_displacements) {
-            M(index, index) += mass[i];
+            M(index, index) += mass;
         }
     }
     return M;
@@ -214,10 +212,10 @@ SimulationContext::SimulationContext(common::Mesh mesh_) {
 
     cache.vertex_to_displacements.resize(vertex_count, -1);
     size_t num_dynamic_displacements = 0;
-    for (size_t i = 0; i < vertex_count; ++i) {
-        if (mesh.fixed[i]) continue;
+    for (auto [index, fixed] : it::zip(cache.vertex_to_displacements, mesh.fixed)) {
+        if (fixed) continue;
 
-        cache.vertex_to_displacements[i] = num_dynamic_displacements;  // store before incrementing
+        index = num_dynamic_displacements;  // store before incrementing
         num_dynamic_displacements++;
     }
 
@@ -301,7 +299,7 @@ State MeshStepper::step(SimulationContext &context) {
 
     // To avoid numerical issues with things moving too quickly, we'll impose a
     // max velocity
-    for (size_t i = 0; i < num_displacements; ++i) {
+    for (size_t i = 0; i < next_state.num_nodes; ++i) {
         double &velocity = next_state.velocities[i];
         velocity = std::clamp(velocity, -common::kTerminalVelocity, common::kTerminalVelocity);
     }
@@ -330,8 +328,8 @@ void Simulator::step(const double dt) {
     auto &triangle_stresses = context->cache.triangle_stresses;
     triangle_stresses.resize(triangles.size(), 3);
     triangle_stresses.setZero();
-    for (size_t i = 0; i < triangles.size(); ++i) {
-        triangle_stresses.row(i) = compute_stress(triangles[i]);
+    for (auto [i, triangle] : it::enumerate(triangles)) {
+        triangle_stresses.row(i) = compute_stress(triangle);
     }
 
     // Compute total energy, this should always be close to 0
@@ -366,8 +364,7 @@ void Simulator::set_mesh(common::Mesh mesh) { context = std::make_unique<Simulat
 
 void Simulator::destroy_stressful_triangles() {
     std::vector<size_t> too_stressful;
-    for (size_t i = 0; i < context->mesh.triangles.size(); ++i) {
-        const auto &triangle = context->mesh.triangles[i];
+    for (auto [i, triangle] : it::enumerate(context->mesh.triangles)) {
         double stress = compute_stress(triangle).norm();
         if (stress > common::get_properties(triangle.material).max_stress) {
             too_stressful.push_back(i);
@@ -386,16 +383,15 @@ void Simulator::destroy_stressful_triangles() {
     auto mapping = common::remove_triangles(too_stressful, context->mesh);
     set_mesh(std::move(context->mesh));
 
-    for (size_t from = 0; from < mapping.size(); ++from) {
-        // Was this a dynamic vertex from the previous cycle? If not there will be no displacements
-        const size_t dynamic_from = previous_vertex_to_displacements[from];
-        if (dynamic_from >= previous_state.num_nodes) {
+    for (auto [to, from] : it::enumerate(mapping)) {
+        // Was this vertex kept? If not we don't have to worry about it
+        if (to >= context->mesh.vertices.size()) {
             continue;
         }
 
-        // Was this vertex kept? If not we don't have to worry about it
-        const size_t to = mapping[from];
-        if (to >= context->mesh.vertices.size()) {
+        // Was this a dynamic vertex from the previous cycle? If not there will be no displacements
+        const size_t dynamic_from = previous_vertex_to_displacements[from];
+        if (dynamic_from >= previous_state.num_nodes) {
             continue;
         }
 

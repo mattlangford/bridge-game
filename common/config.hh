@@ -25,7 +25,7 @@ static constexpr size_t kNumHBlocks = kHeight / kPxSize;
 static constexpr bool kEnableTriangleDestruction = true;
 
 /// Used for the damping matrix, I'm not sure the units here
-static constexpr double kDampingFactor = 0.0;
+static constexpr double kDampingFactor = 100.0;
 
 /// Max speed for falling objects, used to fix numerical issues with very rapidly moving objects
 static constexpr double kTerminalVelocity = 100.0;

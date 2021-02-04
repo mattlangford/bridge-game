@@ -15,6 +15,7 @@ cc_library(
     deps = [
         "//:common",
         ":context",
+        "@iterate//:iterate",
         "@glfw//:glfw",
         "@eigen//:eigen",
     ],
