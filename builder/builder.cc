@@ -7,7 +7,6 @@ void generate_ridge(BuildingContext &context) {
     for (size_t w_block = 0; w_block < common::kNumWBlocks; w_block++) {
         auto index = [&](size_t row) { return context.index(w_block, row); };
         context.data[index(0)] = common::Material::kStone;
-        context.data[index(1)] = common::Material::kStone;
         context.data[index(common::kNumHBlocks / 2)] = common::Material::kBrick;
     }
 
@@ -15,9 +14,7 @@ void generate_ridge(BuildingContext &context) {
     for (size_t h_block = 0; h_block < common::kNumHBlocks / 2; h_block++) {
         auto index = [&](size_t col) { return context.index(col, h_block); };
         context.data[index(0)] = common::Material::kStone;
-        context.data[index(1)] = common::Material::kStone;
         context.data[index(common::kNumWBlocks - 1)] = common::Material::kStone;
-        context.data[index(common::kNumWBlocks - 2)] = common::Material::kStone;
     }
 }
 

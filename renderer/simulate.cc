@@ -6,47 +6,10 @@
 #include "common/material.hh"
 #include "engine/context.hh"
 
-void draw(const SimulationContext& context) {
+void draw_k_matrix(const SimulationContext& context)
+{
     const auto& cache = context.cache;
     const auto& mesh = context.mesh;
-
-    for (size_t i = 0; i < mesh.triangles.size(); ++i) {
-        const common::Triangle& triangle = mesh.triangles[i];
-
-        glBegin(GL_TRIANGLES);
-
-        if (cache.fixed_triangles[i]) {
-            glColor3f(0.f, 0.f, 1.f);
-        } else {
-            const double stress = cache.triangle_stresses.row(i).norm();
-
-            // Here we scale the actual max stress down a bit so it turns bright red before breaking
-            const float max_stress = 0.9 * common::get_properties(triangle.material).max_stress;
-
-            // 0 when stress is 0, 1 when stress is high
-            const float red = static_cast<float>(stress / max_stress);
-            // 1 when stress is 0, 0 when stress is high
-            const float green = static_cast<float>((max_stress - stress) / max_stress);
-            glColor3f(std::clamp(red, 0.f, 1.f), std::clamp(green, 0.f, 1.f), 0.0f);
-        }
-
-        constexpr float kPxPerMeter = static_cast<float>(common::kPxSize) / common::kBlockSize;
-        const auto x = [&](uint8_t i) { return kPxPerMeter * context.get_coordinate(triangle.indices[i]); };
-        const auto y = [&](uint8_t i) { return kPxPerMeter * context.get_coordinate(triangle.indices[i] + 1); };
-
-        glVertex2f(x(0), y(0));
-        glVertex2f(x(1), y(1));
-        glVertex2f(x(2), y(2));
-        glEnd();
-
-        glBegin(GL_LINE_LOOP);
-        glColor3f(0.1f, 0.1f, 0.1f);
-        glVertex2f(x(0), y(0));
-        glVertex2f(x(1), y(1));
-        glVertex2f(x(2), y(2));
-        glEnd();
-    }
-    return;
 
     double max = context.cache.K.coeffs().maxCoeff();
     glBegin(GL_LINES);
@@ -79,4 +42,52 @@ void draw(const SimulationContext& context) {
     }
     glEnd();
     std::cout << "==============\n";
+}
+
+void draw(const SimulationContext& context) {
+    const auto& cache = context.cache;
+    const auto& mesh = context.mesh;
+
+    for (size_t i = 0; i < mesh.triangles.size(); ++i) {
+        const common::Triangle& triangle = mesh.triangles[i];
+
+        glBegin(GL_TRIANGLES);
+
+        if (cache.fixed_triangles[i]) {
+            glColor3f(0.f, 0.f, 1.f);
+        } else {
+            const double stress = cache.triangle_stresses.row(i).norm();
+
+            // Here we scale the actual max stress down a bit so it turns bright red before breaking
+            const float max_stress = common::get_properties(triangle.material).max_stress;
+            if (stress > max_stress)
+            {
+                glColor3f(0.f, 0.f, 0.f);
+            }
+            else
+            {
+                // 0 when stress is 0, 1 when stress is high
+                const float red = static_cast<float>(stress / max_stress);
+                // 1 when stress is 0, 0 when stress is high
+                const float green = static_cast<float>((max_stress - stress) / max_stress);
+                glColor3f(std::clamp(red, 0.f, 1.f), std::clamp(green, 0.f, 1.f), 0.0f);
+            }
+        }
+
+        constexpr float kPxPerMeter = static_cast<float>(common::kPxSize) / common::kBlockSize;
+        const auto x = [&](uint8_t i) { return kPxPerMeter * context.get_coordinate(triangle.indices[i]); };
+        const auto y = [&](uint8_t i) { return kPxPerMeter * context.get_coordinate(triangle.indices[i] + 1); };
+
+        glVertex2f(x(0), y(0));
+        glVertex2f(x(1), y(1));
+        glVertex2f(x(2), y(2));
+        glEnd();
+
+        glBegin(GL_LINE_LOOP);
+        glColor3f(0.1f, 0.1f, 0.1f);
+        glVertex2f(x(0), y(0));
+        glVertex2f(x(1), y(1));
+        glVertex2f(x(2), y(2));
+        glEnd();
+    }
 }
