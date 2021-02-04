@@ -8,14 +8,14 @@ static constexpr size_t kWidth = 1280;
 static constexpr size_t kHeight = 720;
 
 /// Each simulation update will progress forward by this amount
-static constexpr double kSimulationDt = 1.0 / 30.0;
+static constexpr double kSimulationDt = 1.0 / 240.0;
 /// Every frame will be this far apart in time (by calling the simulation update multiple times)
-static constexpr double kRenderDt = 1.0 / 30.0;
+static constexpr double kRenderDt = 1.0 / 60.0;
 
 /// How big each block is for rendering
 static constexpr size_t kPxSize = 20;  // px
 /// How big each block is for simulation
-static constexpr size_t kBlockSize = 1;  // meters
+static constexpr size_t kBlockSize = 2;  // meters
 
 /// How many blocks there are on the screen
 static constexpr size_t kNumWBlocks = kWidth / kPxSize;
@@ -25,7 +25,7 @@ static constexpr size_t kNumHBlocks = kHeight / kPxSize;
 static constexpr bool kEnableTriangleDestruction = true;
 
 /// Used for the damping matrix
-static constexpr double kDampingFactor = 0;
+static constexpr double kDampingFactor = 30.0;
 
 /// Max speed for falling objects, used to fix numerical issues with very rapidly moving objects
 static constexpr double kTerminalVelocity = 100.0;
@@ -37,9 +37,9 @@ inline Properties get_brick_properties() {
     prop.color = {0.75f, 0.5f, 0.0f};
     // Assume 50 props per m^3 and 3.1kg per prop
     prop.mass_density = 50.0 * 3.1;
-    prop.youngs_modulus = 3.7 * 1E8;
+    prop.youngs_modulus = 3.7 * 1E7;
     prop.poissons_ratio = 0.1;
-    prop.max_stress = 1'000'000;
+    prop.max_stress = 6'00'000;
     prop.fixed = false;
     return prop;
 }

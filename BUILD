@@ -27,6 +27,7 @@ cc_library(
         ":common",
         "//builder:context",
         "//engine:context",
+        "//engine:simulate",
         "@glfw//:glfw",
         "@eigen//:eigen",
     ],

@@ -5,6 +5,7 @@
 #include "common/config.hh"
 #include "common/material.hh"
 #include "engine/context.hh"
+#include "engine/simulate.hh"
 
 void draw_k_matrix(const SimulationContext& context)
 {
@@ -56,10 +57,12 @@ void draw(const SimulationContext& context) {
         if (cache.fixed_triangles[i]) {
             glColor3f(0.f, 0.f, 1.f);
         } else {
-            const double stress = cache.triangle_stresses.row(i).norm();
+            TriangleStressHelpers helper{triangle, context};
+            const double zero_stress = 0.5 * common::kBlockSize * common::kBlockSize;
+            const double stress = abs(helper.area() - zero_stress); //cache.triangle_stresses.row(i).norm();
 
             // Here we scale the actual max stress down a bit so it turns bright red before breaking
-            const float max_stress = common::get_properties(triangle.material).max_stress;
+            const float max_stress = 0.02; // common::get_properties(triangle.material).max_stress;
             if (stress > max_stress)
             {
                 glColor3f(0.f, 0.f, 0.f);

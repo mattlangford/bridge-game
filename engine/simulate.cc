@@ -84,13 +84,14 @@ auto TriangleStressHelpers::generate_local_to_global_mapping() const -> std::vec
 //
 
 void TriangleStressHelpers::populate_local_stiffness(GlobalKMatrix &global_k) const {
-    static constexpr double kThickness = common::kBlockSize;  // meters
+    static constexpr double kThickness = 1; //common::kBlockSize;  // meters
 
     const BMatrix B = generate_B();
     const size_t num_displacements = context.state.displacements.size();
+    double area=  0.5f * common::kBlockSize * common::kBlockSize;
 
     // [1] 4.66
-    LocalKMatrix local_k = kThickness * area() * B.transpose() * generate_D() * B;
+    LocalKMatrix local_k = kThickness * area * B.transpose() * generate_D() * B;
     // for (const auto& [local, global] : generate_local_to_global_mapping()) {
     //     const auto& [local_row, local_col] = local;
     //     const auto& [global_row, global_col] = global;
@@ -155,17 +156,6 @@ BMatrix TriangleStressHelpers::generate_B() const {
 //
 
 double TriangleStressHelpers::area() const {
-    // Don't include the displacements, effectively calculating the initial area
-    auto x = [&](size_t i, size_t j){
-        auto i_coord = context.mesh.vertices[triangle.indices[i - 1]];
-        auto j_coord = context.mesh.vertices[triangle.indices[j - 1]];
-        return i_coord - j_coord;
-    };
-    auto y = [&](size_t i, size_t j){
-        auto i_coord = context.mesh.vertices[triangle.indices[i] + 1];
-        auto j_coord = context.mesh.vertices[triangle.indices[j] + 1];
-        return i_coord - j_coord;
-    };
     // From [1] 4.70, I'm keeping the indices one-indexed like they do
     return 0.5f * abs(x(1, 3) * y(2, 3) - y(1, 3) * x(2, 3));
 }
@@ -383,10 +373,9 @@ void Simulator::destroy_stressful_triangles() {
     }
 
     // TODO: This would be nice, but then it gets weird how we call set_mesh()
-    // if (too_stressful.empty()) {
-    //     set_mesh(std::move(context->mesh));
-    //     return;
-    // }
+    if (too_stressful.empty()) {
+        return;
+    }
 
     // Using set_mesh will reset the displacements/velocities/accelerations so
     // we need to make sure to record them and reuse them for the next iteration
