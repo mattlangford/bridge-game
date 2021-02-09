@@ -7,7 +7,7 @@ np.set_printoptions(suppress=True, edgeitems=10, linewidth=100000)
 E = 3.7 * 1E6
 v = 0.1
 m = 50 * 3.1
-c = 1.0
+c = 0.0
 
 # Relates stress to strain
 D = np.array([
@@ -22,18 +22,24 @@ dt = 1 / fps
 dt2 = dt * dt
 
 coords = np.array([
-    0, 1,
     0, 0,
-    1, 1,
+    0, 1,
     1, 0,
+    1, 1,
+    1, 2,
+    1, 3,
+    2, 3,
+    2, 2,
     2, 1,
     2, 0,
-    3, 1,
     3, 0,
+    3, 1,
+    3, 2,
+    3, 3,
+    4, 3,
+    4, 2,
     4, 1,
     4, 0,
-    5, 1,
-    5, 0,
 ], dtype=np.float64)
 
 C = c * np.eye(len(coords))
@@ -51,10 +57,19 @@ fixed = np.array([
     0, 0,
     0, 0,
     0, 0,
+    0, 0,
+    0, 0,
+    0, 0,
+    0, 0,
+    0, 0,
+    0, 0,
 ])
-assert len(fixed) == len(coords)
+assert len(fixed) == len(coords), f"{len(fixed)} != {len(coords)}"
 
 def get_triangle(p0, p1, p2):
+    p0 = p0 - 1
+    p1 = p1 - 1
+    p2 = p2 - 1
     return [
         2 * p0, 2 * p0 + 1,
         2 * p1, 2 * p1 + 1,
@@ -67,7 +82,29 @@ def get_triangles(from_i, to_i):
         l.append(get_triangle(i, i + 1, i + 2))
     return l
 
-triangles = get_triangles(0, int(len(fixed) / 2 - 2))
+triangles = [
+    get_triangle(1, 3, 4),
+    get_triangle(1, 2, 4),
+    get_triangle(3, 4, 9),
+    get_triangle(4, 5, 8),
+    get_triangle(5, 6, 7),
+    get_triangle(5, 8, 7),
+    get_triangle(4, 8, 9),
+    get_triangle(3, 9, 10),
+    get_triangle(10, 9, 12),
+    get_triangle(9, 8, 13),
+    get_triangle(8, 7, 14),
+    get_triangle(8, 14, 13),
+    get_triangle(9, 13, 12),
+    get_triangle(10, 12, 11),
+    get_triangle(11, 12, 17),
+    get_triangle(12, 13, 16),
+    get_triangle(13, 14, 15),
+    get_triangle(13, 15, 16),
+    get_triangle(12, 16, 17),
+    get_triangle(11, 12, 17),
+    get_triangle(11, 17, 18),
+]
 u = np.zeros_like(coords)
 u_dot = np.zeros_like(u)
 u_dot_dot = np.zeros_like(u)
@@ -117,6 +154,32 @@ def b(triangle):
         [x(3, 2), y(2, 3), x(1, 3), y(3, 1), x(2, 1), y(1, 2)],
     ])
     return b / det_j
+
+def b_almansi(u, triangle):
+    displacements = coords[triangle] + u[triangle]
+    q = u[triangle]
+    def x(i, j):
+        i -= 1
+        j -= 1
+        return displacements[2 * i] - displacements[2 *j]
+    def y(i, j):
+        i -= 1
+        j -= 1
+        return displacements[2 * i + 1] - displacements[2 * j + 1]
+
+    det_j = x(1, 3) * y(2, 3) - y(1, 3) * x(2, 3)
+    inv_det_j = 1 / det_j
+
+    du_dx = inv_det_j * (y(2, 3) * (q[0] - q[4]) - y(1, 3) * (q[2] - q[4]))
+    du_dy = inv_det_j * (-x(2, 3) * (q[0] - q[4]) + x(1, 3) * (q[2] - q[4]))
+    dv_dx = inv_det_j * (y(2, 3) * (q[1] - q[5]) - y(1, 3) * (q[3] - q[5]))
+    dv_dy = inv_det_j * (-x(2, 3) * (q[1] - q[5]) + x(1, 3) * (q[3] - q[5]))
+
+    return np.array([
+        du_dx - 0.5 * (du_dx ** 2 + dv_dx ** 2),
+        dv_dy - 0.5 * (du_dy ** 2 + dv_dy ** 2),
+        0.5 * (du_dy + dv_dx - (du_dx * du_dy + dv_dx * dv_dy))
+    ])
 
 def k(triangle):
     thickness = 1
@@ -240,8 +303,8 @@ def draw_triangles(u):
     for triangle in triangles:
         x1, y1, x2, y2, x3, y3 = points[triangle]
 
-        stresses = D.dot(b(triangle)).dot(u[triangle])
-        stress = np.linalg.norm(stresses[:2])
+        stresses = D.dot(b_almansi(u, triangle))
+        stress = np.linalg.norm(stresses)
 
         def color(c):
             return max(min(c, 1.0), 0.0)
@@ -252,7 +315,7 @@ def draw_triangles(u):
         plt.fill((x1, x2, x3), (y1, y2, y3), facecolor=(red, green, 0.0), edgecolor="black", linewidth=1, zorder=-10)
 
     plt.quiver(points[::2], points[1::2], forces[::2], forces[1::2], color="black")
-    plt.scatter(points[::2], points[1::2])
+    plt.scatter(points[::2], points[1::2], color=["red" if i == 1 else "blue" for i in fixed[::2]])
 
 def draw_k_matrix():
     points = coords + u
@@ -273,16 +336,16 @@ def draw_k_matrix():
             color = (element / max_element, element / max_element, 0.5)
             plt.plot((from_x, to_x), (from_y, to_y), color=color, linewidth=2)
 
-    plt.scatter(points[::2], points[1::2])
+    plt.scatter(points[::2], points[1::2], colors)
 
 
 def draw(i, u):
     plt.clf()
     print (f"Saving frame {i}")
-    plt.xlim(min(coords[::2]), max(coords[::2]) + 1)
-    plt.ylim(min(coords[1::2]) - 2, max(coords[1::2] + 2))
+    plt.xlim(min(coords) - 2, max(coords) + 2)
+    plt.ylim(min(coords) - 2, max(coords) + 2)
     draw_triangles(u)
-    draw_k_matrix()
+    #draw_k_matrix()
 
     if isinstance(i, int):
         plt.savefig(f"/tmp/{i:07}.png")

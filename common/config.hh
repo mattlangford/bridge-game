@@ -25,7 +25,7 @@ static constexpr size_t kNumHBlocks = kHeight / kPxSize;
 static constexpr bool kEnableTriangleDestruction = true;
 
 /// Used for the damping matrix
-static constexpr double kDampingFactor = 30.0;
+static constexpr double kDampingFactor = 0.0;
 
 /// Max speed for falling objects, used to fix numerical issues with very rapidly moving objects
 static constexpr double kTerminalVelocity = 100.0;
@@ -35,9 +35,9 @@ inline Properties get_brick_properties() {
     Properties prop;
     prop.name = "brick";
     prop.color = {0.75f, 0.5f, 0.0f};
-    // Assume 50 props per m^3 and 3.1kg per prop
+    // Assume 50 bricks per m^3 and 3.1kg per brick
     prop.mass_density = 50.0 * 3.1;
-    prop.youngs_modulus = 3.7 * 1E7;
+    prop.youngs_modulus = 3.7 * 1E8;
     prop.poissons_ratio = 0.1;
     prop.max_stress = 6'00'000;
     prop.fixed = false;

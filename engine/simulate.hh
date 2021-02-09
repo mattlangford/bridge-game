@@ -62,6 +62,7 @@ struct TriangleStressHelpers {
     void populate_local_stiffness(GlobalKMatrix &global_k) const;
 
     BMatrix generate_B() const;
+    Eigen::Vector3d generate_almansi_stress(const Eigen::Matrix<double, 6, 1>& u) const;
 
     double area() const;
 

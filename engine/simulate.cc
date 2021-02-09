@@ -155,6 +155,26 @@ BMatrix TriangleStressHelpers::generate_B() const {
 // #############################################################################
 //
 
+Eigen::Vector3d TriangleStressHelpers::generate_almansi_stress(const Eigen::Matrix<double, 6, 1>& u) const
+{
+    const double inv_det_j = 1.0 / (x(1, 3) * y(2, 3) - y(1, 3) * x(2, 3));
+
+    const double du_dx = inv_det_j * (y(2, 3) * (u[0] - u[4]) - y(1, 3) * (u[2] - u[4]));
+    const double du_dy = inv_det_j * (-x(2, 3) * (u[0] - u[4]) + x(1, 3) * (u[2] - u[4]));
+    const double dv_dx = inv_det_j * (y(2, 3) * (u[1] - u[5]) - y(1, 3) * (u[3] - u[5]));
+    const double dv_dy = inv_det_j * (-x(2, 3) * (u[1] - u[5]) + x(1, 3) * (u[3] - u[5]));
+
+    return Eigen::Vector3d{
+        du_dx - 0.5 * (du_dx * du_dx + dv_dx * dv_dx),
+        dv_dy - 0.5 * (du_dy * du_dy + dv_dy * dv_dy),
+        0.5 * (du_dy + dv_dx - (du_dx * du_dy + dv_dx * dv_dy))
+    };
+}
+
+//
+// #############################################################################
+//
+
 double TriangleStressHelpers::area() const {
     // From [1] 4.70, I'm keeping the indices one-indexed like they do
     return 0.5f * abs(x(1, 3) * y(2, 3) - y(1, 3) * x(2, 3));
@@ -315,6 +335,25 @@ State MeshStepper::step(SimulationContext &context) {
 void Simulator::step(const double dt) {
     if (!context) return;
 
+    // [2] Table 9.3 A.5/6
+    // context->cache.K_solver.compute(generate_global_stiffness_matrix(*context) + MeshStepper::kA0 * context->cache.mass + MeshStepper::kA1 * context->cache.damping);
+    // if (context->cache.K_solver.info() != Eigen::Success) {
+    //     throw std::runtime_error("Decomposition Failed!");
+    // }
+
+    // Compute total energy, this should always be close to 0
+    const auto &state = context->state;
+    const auto &mass = context->cache.mass;
+    const double kinetic = 0.5 * state.velocities.transpose() * mass * state.velocities;
+    const double strain = 0.5 * state.displacements.transpose() * context->cache.K * state.displacements;
+    double gravity = 0;
+    for (size_t i = 1; i < state.num_nodes; i += 2) {
+        gravity += -9.8 * mass.diagonal()[i] * -state.displacements[i];
+    }
+    const double total_energy = kinetic + strain + gravity;
+    std::cout << "Total energy : " << total_energy << " (KE:" << kinetic << ", gPE: " << gravity << ", sPE: " <<
+    strain << ")\n";
+
     const size_t num_steps = dt / MeshStepper::kDt;
     for (size_t i = 0; i < num_steps; ++i) {
         context->state = MeshStepper::step(*context);
@@ -333,18 +372,6 @@ void Simulator::step(const double dt) {
         triangle_stresses.row(i) = compute_stress(triangle);
     }
 
-    // Compute total energy, this should always be close to 0
-    // const auto &state = context->state;
-    // const auto &mass = context->cache.mass;
-    // const double kinetic = 0.5 * state.velocities.transpose() * mass * state.velocities;
-    // const double strain = 0.5 * state.displacements.transpose() * context->cache.K * state.displacements;
-    // double gravity = 0;
-    // for (size_t i = 1; i < state.num_nodes; i += 2) {
-    //     gravity += -9.8 * mass.diagonal()[i] * -state.displacements[i];
-    // }
-    // const double total_energy = kinetic + strain + gravity;
-    // std::cout << "Total energy : " << total_energy << " (KE:" << kinetic << ", gPE: " << gravity << ", sPE: " <<
-    // strain << ")\n";
 }
 
 //
@@ -420,6 +447,7 @@ Eigen::Vector3d Simulator::compute_stress(const common::Triangle &triangle) cons
         displacements[2 * i] = context->get_displacement(triangle.indices[i]);
         displacements[2 * i + 1] = context->get_displacement(triangle.indices[i] + 1);
     }
+
     TriangleStressHelpers helper{triangle, *context};
-    return helper.generate_D() * helper.generate_B() * displacements;
+    return helper.generate_D() * helper.generate_almansi_stress(displacements);
 }

@@ -61,7 +61,7 @@ def translate(coords, v):
 def draw_coords(points, *args, **kwargs):
     plt.fill((points[::2]), (points[1::2]), *args, **kwargs)
 
-def compute_stress(u):
+def compute_strain(u):
     displacements = coords[triangle] + u[triangle]
     def x(i, j):
         i -= 1
