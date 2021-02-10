@@ -10,7 +10,7 @@ brew install bazel
 bazel build :main
 ```
 ### Linux
-This should mostly "just work". Make sure to install `xorg-dev" though for xll
+This should mostly "just work". Make sure to install `xorg-dev` though for X-11
 ```
 sudo apt-get install bazel
 sudo apt-get install xorg-dev
