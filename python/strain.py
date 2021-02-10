@@ -61,42 +61,22 @@ def translate(coords, v):
 def draw_coords(points, *args, **kwargs):
     plt.fill((points[::2]), (points[1::2]), *args, **kwargs)
 
+E0 = np.array([
+    [coords[0], coords[2]],
+    [coords[1], coords[3]]
+])
+E0_inv = np.linalg.inv(E0)
+
 def compute_strain(u):
-    displacements = coords[triangle] + u[triangle]
-    def x(i, j):
-        i -= 1
-        j -= 1
-        return displacements[2 * i] - displacements[2 *j]
-    def y(i, j):
-        i -= 1
-        j -= 1
-        return displacements[2 * i + 1] - displacements[2 * j + 1]
+    d = coords[triangle] + u[triangle]
+    E = np.array([
+        [d[0], d[2]],
+        [d[1], d[3]]
+    ])
 
-    det_j = x(1, 3) * y(2, 3) - y(1, 3) * x(2, 3)
-    inv_det_j = 1 / det_j
-
-    du_dx = inv_det_j * (y(2, 3) * (u[0] - u[4]) - y(1, 3) * (u[2] - u[4]))
-    du_dy = inv_det_j * (-x(2, 3) * (u[0] - u[4]) + x(1, 3) * (u[2] - u[4]))
-    dv_dx = inv_det_j * (y(2, 3) * (u[1] - u[5]) - y(1, 3) * (u[3] - u[5]))
-    dv_dy = inv_det_j * (-x(2, 3) * (u[1] - u[5]) + x(1, 3) * (u[3] - u[5]))
-
-    print ("Simple Strain:", np.array([
-        du_dx,
-        dv_dy,
-        du_dy + dv_dx
-    ]))
-
-    print ("Green Strain:", np.array([
-        du_dx + 0.5 * (du_dx ** 2 + dv_dx ** 2),
-        dv_dy + 0.5 * (du_dx ** 2 + dv_dx ** 2),
-        (du_dy + dv_dx) * 0.5 + 0.5 * (du_dx * du_dy + dv_dx * dv_dy)
-    ]))
-
-    print ("Almansi Strain:",  np.array([
-        du_dx - 0.5 * (du_dx ** 2 + dv_dx ** 2),
-        dv_dy - 0.5 * (du_dy ** 2 + dv_dy ** 2),
-        0.5 * (du_dy + dv_dx - (du_dx * du_dy + dv_dx * dv_dy))
-    ]))
+    F = E0_inv.dot(E)
+    strain = 0.5 * (F.T.dot(F) - np.eye(2))
+    print (strain[0][0], strain[0][1], strain[1][1]
 
 u = translate(rotate(coords, np.radians(45)), [3, 1]) - coords
 print (generate_b(triangle).dot(u))
