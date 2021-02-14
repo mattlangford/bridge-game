@@ -207,6 +207,82 @@ def compute_forces(triangle):
     f2 = -0.5 * F.dot(S).dot(p12 + p20)
     return f0, f1, f2
 
+# [2] Table 6.5 B
+class UpdatedLagrangianMethod(object):
+    def __init__(self):
+        self.u = np.zeros_like(coords)
+        self.u_v = np.zeros_like(coords)
+        self.u_a = np.zeros_like(coords)
+
+    def incremental_strains(self):
+        _u = self.u[::2]
+        _v = self.u[1::2]
+        _x = coords[::2]
+        _y = coords[1::2]
+
+        v = np.array([
+            [1, _x[0], _y[0]],
+            [1, _x[1], _y[1]],
+            [1, _x[2], _y[2]],
+        ])
+        det_v = np.linalg.det(v)
+        inv_v = np.linalg.inv(v)
+        a0, a1, a2, b0, b1, b2, c0, c1, c2 = inv_v.flatten()
+
+        du_dx = (1 / det_v) * (b0 * _u[0] + b1 * _u[1] + b2 * _u[2])
+        du_dy = (1 / det_v) * (c0 * _u[0] + c1 * _u[1] + c2 * _u[2])
+        dv_dx = (1 / det_v) * (b0 * _v[0] + b1 * _v[1] + b2 * _v[2])
+        dv_dy = (1 / det_v) * (c0 * _v[0] + c1 * _v[1] + c2 * _v[2])
+
+        return np.array([
+            du_dx + 0.5 * (du_dx ** 2 + dv_dx ** 2),
+            dv_dy + 0.5 * (du_dx ** 2 + dv_dx ** 2),
+            0.5 * (du_dy + dv_dx) + 0.5 * (du_dx * du_dy + dv_dx * dv_dy)
+        ])
+
+    def linear_b(self):
+        _x = coords[::2]
+        _y = coords[1::2]
+
+        v = np.array([
+            [1, _x[0], _y[0]],
+            [1, _x[1], _y[1]],
+            [1, _x[2], _y[2]],
+        ])
+        det_v = np.linalg.det(v)
+        inv_v = np.linalg.inv(v)
+        a0, a1, a2, b0, b1, b2, c0, c1, c2 = inv_v.flatten()
+
+        return np.array([
+            [b0,  0, b1,  0, b2,  0],
+            [ 0, c0,  0, c1,  0, c2],
+            [c0, b0, c1, b1, c2, b2]
+        ])
+
+    def nonlinear_b(self):
+        _x = coords[::2]
+        _y = coords[1::2]
+
+        v = np.array([
+            [1, _x[0], _y[0]],
+            [1, _x[1], _y[1]],
+            [1, _x[2], _y[2]],
+        ])
+        det_v = np.linalg.det(v)
+        inv_v = np.linalg.inv(v)
+        a0, a1, a2, b0, b1, b2, c0, c1, c2 = inv_v.flatten()
+
+        return np.array([
+            [b0,  0, b1,  0, b2,  0],
+            [c0,  0, c1,  0, c2,  0],
+            [ 0, b0,  0, b1,  0, b2],
+            [ 0, c0,  0, c1,  0, c2],
+        ])
+
+    def linear_k(self):
+        b = self.linear_b()
+        return 
+
 def update():
     global u, u_dot, u_dot_dot
     forces = -9.8 * np.diag(M)
@@ -246,9 +322,7 @@ def draw_triangles(u):
         sign = 1 if i % 2 == 0 else -1
         p10, p20, p12 = compute_normals(triangle)
 
-        plt.plot(
-            [x0, x1, x1, x2, x2, x0],
-            [y0, y1, y1, y2, y2, y0])
+        plt.plot([x0, x1, x1, x2, x2, x0], [y0, y1, y1, y2, y2, y0])
 
         plt.plot([x0, x0 + f0[0]], [y0, y0 + f0[1]])
         plt.plot([x1, x1 + f1[0]], [y1, y1 + f1[1]])
