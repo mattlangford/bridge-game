@@ -1,10 +1,11 @@
 import numpy as np
 from matplotlib import pyplot as plt
 import sys
+import scipy.optimize
 
 np.set_printoptions(suppress=True, edgeitems=10, linewidth=100000)
 
-E = 3.7 * 1E6
+E = 3.7 * 1E7
 v = 0.1
 m = 50 * 3.1
 c = 0.0
@@ -17,16 +18,11 @@ D = np.array([
 ])
 D *= E / (1.0 - v * v)
 
-D = np.array([
-    [2 * v + E, E, 0.0],
-    [E, 2 * v + E, 0.0 ],
-    [0.0, 0.0, v]
-])
-
-fps = 2000.
+fps = 60.
 dt = 1 / fps
 dt2 = dt * dt
 
+thickness = 1
 d = 1
 coords = np.array([
     0, 0,
@@ -37,20 +33,12 @@ coords = np.array([
     2, 1,
     3, 0,
     3, 1,
-    # 1, 2,
-    # 1, 3,
-    # 2, 3,
-    # 2, 2,
-    # 2, 1,
-    # 2, 0,
-    # 3, 0,
-    # 3, 1,
-    # 3, 2,
-    # 3, 3,
-    # 4, 3,
-    # 4, 2,
-    # 4, 1,
-    # 4, 0,
+    4, 0,
+    4, 1,
+    5, 0,
+    5, 1,
+    6, 0,
+    6, 1,
 ], dtype=np.float64)
 
 C = c * np.eye(len(coords))
@@ -64,20 +52,12 @@ fixed = np.array([
     0, 0,
     0, 0,
     0, 0,
-    # 0, 0,
-    # 0, 0,
-    # 0, 0,
-    # 0, 0,
-    # 0, 0,
-    # 0, 0,
-    # 0, 0,
-    # 0, 0,
-    # 0, 0,
-    # 0, 0,
-    # 0, 0,
-    # 0, 0,
-    # 0, 0,
-    # 0, 0,
+    0, 0,
+    0, 0,
+    0, 0,
+    0, 0,
+    0, 0,
+    0, 0,
 ])
 assert len(fixed) == len(coords), f"{len(fixed)} != {len(coords)}"
 
@@ -94,33 +74,12 @@ def get_triangles(from_i, to_i):
         l.append(get_triangle(i, i + 1, i + 2))
     return l
 
-triangles = [
-    get_triangle(0, 1, 2),
-    get_triangle(3, 2, 1),
-    get_triangle(2, 3, 4),
-    get_triangle(5, 4, 3),
-    get_triangle(4, 5, 6),
-    get_triangle(7, 6, 5),
-    # get_triangle(5, 8, 7),
-    # get_triangle(4, 8, 9),
-    # get_triangle(3, 9, 10),
-    # get_triangle(10, 9, 12),
-    # get_triangle(9, 8, 13),
-    # get_triangle(8, 7, 14),
-    # get_triangle(8, 14, 13),
-    # get_triangle(9, 13, 12),
-    # get_triangle(10, 12, 11),
-    # get_triangle(11, 12, 17),
-    # get_triangle(12, 13, 16),
-    # get_triangle(13, 14, 15),
-    # get_triangle(13, 15, 16),
-    # get_triangle(12, 16, 17),
-    # get_triangle(11, 12, 17),
-    # get_triangle(11, 17, 18),
-]
+triangles = get_triangles(0, 12)
+print (triangles)
 u = np.zeros_like(coords)
 u_dot = np.zeros_like(u)
 u_dot_dot = np.zeros_like(u)
+
 
 def compute_M():
     triangle_volume = 1 * 1 * 1 / 2
@@ -132,80 +91,71 @@ def compute_M():
     return M
 M = compute_M()
 
-def compute_F(triangle):
-    sign = 1 if triangles.index(triangle) % 2 == 0 else -1
-    _u, _v = u[triangle][::2], u[triangle][1::2]
 
-    u10 = _u[1] - _u[0]
-    u20 = _u[2] - _u[0]
-    v10 = _v[1] - _v[0]
-    v20 = _v[2] - _v[0]
-    F = np.array([
-        [u10, u20],
-        [v10, v20]])
-    F /= d
-    F += np.eye(2)
-    F *= sign
-    return F
+def area(triangle, u):
+    displacements = coords[triangle] + u[triangle]
 
-def compute_F(triangle):
-    sign = 1 if triangles.index(triangle) % 2 == 0 else -1
-    c = coords[triangle]
-    points = c + u[triangle]
+    def x(i, j):
+        i -= 1
+        j -= 1
+        return displacements[2 * i] - displacements[2 * j]
+    def y(i, j):
+        i -= 1
+        j -= 1
+        return displacements[2 * i + 1] - displacements[2 * j + 1]
 
-    x = np.array([
-        [c[0], c[1]],
-        [c[2], c[3]],
-        [c[4], c[5]],
-    ])
-    y = np.array([
-        [points[0], points[1]],
-        [points[2], points[3]],
-        [points[4], points[5]],
-    ])
+    det_j = x(1, 3) * y(2, 3) - y(1, 3) * x(2, 3)
+    return 0.5 * abs(det_j)
 
-    Y = np.array([y[1] - y[0], y[2] - y[0]])
-    X = np.array([x[1] - x[0], x[2] - x[0]])
-    F = Y.dot(np.linalg.inv(X))
-    return F
 
-def compute_normals(triangle):
-    sign = 1 if triangles.index(triangle) % 2 == 0 else -1
-    _u, _v = u[triangle][::2], u[triangle][1::2]
+def generate_nonfixed_matrix(matrix):
+    coords_map = []
+    for i, is_fixed in enumerate(fixed):
+        if is_fixed:
+            continue
+        coords_map.append(i)
 
-    _d = sign * d
-    p10 = np.array([
-        -(_d + _v[1] - _v[0]),
-               _u[1] - _u[0]
-    ])
-    p20 = np.array([
-               _v[2] - _v[0],
-        -(_d + _u[2] - _u[0])
-    ])
-    p12 = np.array([
-         _d + _v[1] - _v[2],
-      -(-_d + _u[1] - _u[2]),
-    ])
+    result = np.zeros((len(coords_map), len(coords_map)))
+    for row_to, row_from in enumerate(coords_map):
+        for col_to, col_from in enumerate(coords_map):
+            result[row_to, col_to] = matrix[row_from, col_from]
 
-    return p10, p20, p12
+    return result
 
-def compute_forces(triangle):
-    sign = 1 if triangles.index(triangle) % 2 == 0 else -1
-    _u, _v = u[triangle][::2], u[triangle][1::2]
 
-    F = compute_F(triangle)
-    strain = 0.5 * (F.T.dot(F) - np.eye(2))
-    stress = D.dot([strain[0, 0], strain[1, 1], strain[0, 1]])
-    S = np.array([
-        [stress[0], stress[2]],
-        [stress[2], stress[1]],
-    ])
-    p10, p20, p12 = compute_normals(triangle)
+def generate_full_vector(nonfixed_vector, result_vector):
+    coords_map = []
+    for i, is_fixed in enumerate(fixed):
+        if is_fixed:
+            continue
+        coords_map.append(i)
 
-    f0 = -0.5 * F.dot(S).dot(p20 + p10)
-    f1 = -0.5 * F.dot(S).dot(p10 + p12)
-    f2 = -0.5 * F.dot(S).dot(p12 + p20)
-    return f0, f1, f2
+    for from_i, to_i in enumerate(coords_map):
+        result_vector[to_i] = nonfixed_vector[from_i]
+
+    return result_vector
+
+
+def generate_nonfixed_vector(full_vector):
+    coords_map = []
+    for i, is_fixed in enumerate(fixed):
+        if is_fixed:
+            continue
+        coords_map.append(i)
+
+    result = np.zeros(len(coords_map))
+    for to_i, from_i in enumerate(coords_map):
+        result[to_i] = full_vector[from_i]
+    return result
+
+def gen_global_k(gen_local):
+    K = np.zeros([len(coords), len(coords)])
+    for i, triangle in enumerate(triangles):
+        local_k = gen_local(triangle)
+        for row in range(6):
+            for col in range(6):
+                K[triangle[col], triangle[row]] += local_k[row, col]
+    return K
 
 # [2] Table 6.5 B
 class UpdatedLagrangianMethod(object):
@@ -214,11 +164,11 @@ class UpdatedLagrangianMethod(object):
         self.u_v = np.zeros_like(coords)
         self.u_a = np.zeros_like(coords)
 
-    def incremental_strains(self):
-        _u = self.u[::2]
-        _v = self.u[1::2]
-        _x = coords[::2]
-        _y = coords[1::2]
+    def nonlinear_strains(self, triangle, u):
+        _u = u[triangle][::2]
+        _v = u[triangle][1::2]
+        _x = coords[triangle][::2]
+        _y = coords[triangle][1::2]
 
         v = np.array([
             [1, _x[0], _y[0]],
@@ -240,35 +190,15 @@ class UpdatedLagrangianMethod(object):
             0.5 * (du_dy + dv_dx) + 0.5 * (du_dx * du_dy + dv_dx * dv_dy)
         ])
 
-    def linear_b(self):
-        _x = coords[::2]
-        _y = coords[1::2]
+    def nonlinear_b(self, triangle, u):
+        _x = coords[triangle][::2] + u[triangle][::2]
+        _y = coords[triangle][1::2] + u[triangle][1::2]
 
         v = np.array([
             [1, _x[0], _y[0]],
             [1, _x[1], _y[1]],
             [1, _x[2], _y[2]],
         ])
-        det_v = np.linalg.det(v)
-        inv_v = np.linalg.inv(v)
-        a0, a1, a2, b0, b1, b2, c0, c1, c2 = inv_v.flatten()
-
-        return np.array([
-            [b0,  0, b1,  0, b2,  0],
-            [ 0, c0,  0, c1,  0, c2],
-            [c0, b0, c1, b1, c2, b2]
-        ])
-
-    def nonlinear_b(self):
-        _x = coords[::2]
-        _y = coords[1::2]
-
-        v = np.array([
-            [1, _x[0], _y[0]],
-            [1, _x[1], _y[1]],
-            [1, _x[2], _y[2]],
-        ])
-        det_v = np.linalg.det(v)
         inv_v = np.linalg.inv(v)
         a0, a1, a2, b0, b1, b2, c0, c1, c2 = inv_v.flatten()
 
@@ -279,58 +209,144 @@ class UpdatedLagrangianMethod(object):
             [ 0, c0,  0, c1,  0, c2],
         ])
 
-    def linear_k(self):
-        b = self.linear_b()
-        return 
+    def nonlinear_k(self, u):
+        def impl(triangle):
+            strains = self.linear_strains(triangle, u)
+            t11, t22, t12 = D.dot(strains)
+            stress_matrix = np.array([
+                [t11, t12,  0,   0],
+                [t12, t22,  0,   0],
+                [  0,  0, t11, t12],
+                [  0,  0, t12, t22],
+            ])
+            b = self.nonlinear_b(triangle, u)
+            return thickness * area(triangle, u) * b.T.dot(stress_matrix).dot(b)
+        return gen_global_k(impl)
 
-def update():
-    global u, u_dot, u_dot_dot
-    forces = -9.8 * np.diag(M)
+    def linear_strains(self, triangle, u):
+        _u = u[triangle][::2]
+        _v = u[triangle][1::2]
+        _x = coords[triangle][::2] + _u
+        _y = coords[triangle][1::2] + _v
 
-    for triangle in triangles:
-        f0, f1, f2 = compute_forces(triangle)
-        forces[triangle[0]] += f0[0]
-        forces[triangle[1]] += f0[1]
-        forces[triangle[2]] += f1[0]
-        forces[triangle[3]] += f1[1]
-        forces[triangle[4]] += f2[0]
-        forces[triangle[5]] += f2[1]
+        v = np.array([
+            [1, _x[0], _y[0]],
+            [1, _x[1], _y[1]],
+            [1, _x[2], _y[2]],
+        ])
+        det_v = np.linalg.det(v)
+        inv_v = np.linalg.inv(v)
+        a0, a1, a2, b0, b1, b2, c0, c1, c2 = inv_v.flatten()
 
-    forces[fixed == 1] = 0
-    #print (forces)
+        du_dx = (1 / det_v) * (b0 * _u[0] + b1 * _u[1] + b2 * _u[2])
+        du_dy = (1 / det_v) * (c0 * _u[0] + c1 * _u[1] + c2 * _u[2])
+        dv_dx = (1 / det_v) * (b0 * _v[0] + b1 * _v[1] + b2 * _v[2])
+        dv_dy = (1 / det_v) * (c0 * _v[0] + c1 * _v[1] + c2 * _v[2])
 
-    u_dot_dot = forces / np.diag(M)
-    u = u + dt * u_dot + 0.5 * dt2 * u_dot_dot
-    u_dot = u_dot + dt * u_dot_dot
-    print (u)
+        return np.array([
+            du_dx,
+            dv_dy,
+            0.5 * (du_dy + dv_dx)
+        ])
+
+    def linear_b(self, triangle, u):
+        _u = u[triangle][::2]
+        _v = u[triangle][1::2]
+        _x = coords[triangle][::2] + _u
+        _y = coords[triangle][1::2] + _v
+
+        v = np.array([
+            [1, _x[0], _y[0]],
+            [1, _x[1], _y[1]],
+            [1, _x[2], _y[2]],
+        ])
+        inv_v = np.linalg.inv(v)
+        a0, a1, a2, b0, b1, b2, c0, c1, c2 = inv_v.flatten()
+
+        return np.array([
+            [b0,  0, b1,  0, b2,  0],
+            [ 0, c0,  0, c1,  0, c2],
+            [c0, b0, c1, b1, c2, b2]
+        ])
+
+    def linear_k(self, u):
+        def impl(triangle):
+            b = self.linear_b(triangle, u)
+            return thickness * area(triangle, u) * b.T.dot(D).dot(b)
+        return gen_global_k(impl)
+
+    def stress_forces(self, u):
+        k = self.linear_k(u)
+        return k.dot(u)
+
+    def iteration(self, new_u):
+        gravity = np.zeros_like(self.u)
+        gravity[1::2] = -9.8 * np.diag(M)[1::2]
+
+        K = generate_nonfixed_matrix(self.linear_k(new_u) + self.nonlinear_k(new_u) + (4 / dt2) * M + (2 / dt) * C)
+
+        rhs = gravity - self.stress_forces(new_u)
+        rhs -= M.dot((4 / dt2) * (new_u - self.u) - (4 / dt) * self.u_v - self.u_a)
+        rhs -= C.dot((2 / dt) * (new_u - self.u) - self.u_v)
+
+        du = np.linalg.inv(K).dot(generate_nonfixed_vector(rhs))
+        new_u += generate_full_vector(du, np.zeros_like(self.u))
+
+        return new_u
+
+    def update(self):
+        new_u = np.copy(self.u)
+
+        previous_u = np.zeros_like(new_u)
+        for i in range(5):
+            new_u = self.iteration(new_u)
+            if (np.linalg.norm(new_u - previous_u) < 1E-4):
+                print ("Converged!")
+                break
+            previous_u = new_u
+        else:
+            print ("Failed to converge.")
+
+        alpha = 0.5
+        beta = 0.25 * (0.5 + alpha) ** 2.0
+
+        new_u = generate_nonfixed_vector(new_u)
+        u = generate_nonfixed_vector(self.u)
+        u_v = generate_nonfixed_vector(self.u_v)
+        u_a = generate_nonfixed_vector(self.u_a)
+
+        n_1 = u_v + (1 - alpha) * dt * u_a
+        n_2 = u + u_v * dt + (0.5 - beta) * dt * dt * u_a
+
+        new_u_a = (new_u - n_2) / (beta * dt2)
+        new_u_v = n_1 + alpha * new_u_a * dt
+
+        self.u = generate_full_vector(new_u, np.zeros_like(self.u))
+        self.u_v = generate_full_vector(new_u_v, np.zeros_like(self.u_v))
+        self.u_a = generate_full_vector(new_u_a, np.zeros_like(self.u_a))
+
 
 def draw_triangles(u):
     points = coords + u
 
+    ul = UpdatedLagrangianMethod()
+    ul.u = u
+
     for i, triangle in enumerate(triangles):
         x0, y0, x1, y1, x2, y2 = points[triangle]
-        plt.scatter((x0, x1, x2), (y0, y1, y2))
 
-        f0, f1, f2 = compute_forces(triangle)
-        f0 *= 1E-6
-        f1 *= 1E-6
-        f2 *= 1E-6
+        stresses = D.dot(ul.nonlinear_strains(triangle, u))
+        stress = np.linalg.norm(stresses)
 
-        _u = u[triangle][::2]
-        _v = u[triangle][1::2]
+        def color(c):
+            return max(min(c, 1.0), 0.0)
+        max_stress = 20000
+        red = color(stress / max_stress)
+        green = color((max_stress - stress) / max_stress)
 
-        sign = 1 if i % 2 == 0 else -1
-        p10, p20, p12 = compute_normals(triangle)
+        plt.fill((x0, x1, x2), (y0, y1, y2), facecolor=(red, green, 0.0), edgecolor="black", linewidth=1, zorder=-10)
 
-        plt.plot([x0, x1, x1, x2, x2, x0], [y0, y1, y1, y2, y2, y0])
-
-        plt.plot([x0, x0 + f0[0]], [y0, y0 + f0[1]])
-        plt.plot([x1, x1 + f1[0]], [y1, y1 + f1[1]])
-        plt.plot([x2, x2 + f2[0]], [y2, y2 + f2[1]])
-
-        # plt.plot([(x1 + x0) / 2.0, (x1 + x0) / 2.0 + p10[0]], [(y1 + y0) / 2.0, (y1 + y0) / 2.0 + p10[1]])
-        # plt.plot([(x2 + x0) / 2.0, (x2 + x0) / 2.0 + p20[0]], [(y2 + y0) / 2.0, (y2 + y0) / 2.0 + p20[1]])
-        # plt.plot([(x2 + x1) / 2.0, (x2 + x1) / 2.0 + p12[0]], [(y2 + y1) / 2.0, (y2 + y1) / 2.0 + p12[1]])
+    plt.scatter(points[::2], points[1::2], color=["red" if i == 1 else "blue" for i in fixed[::2]])
 
 
 def draw(i, u):
@@ -348,7 +364,8 @@ def draw(i, u):
         plt.savefig(f"/tmp/{i}.png")
 
 if __name__ == "__main__":
-    draw("00_test", u)
+    ul = UpdatedLagrangianMethod()
+    draw("00_init", ul.u)
 
     max_i = 5000
     if len(sys.argv) == 2:
@@ -356,9 +373,9 @@ if __name__ == "__main__":
 
     for i in range(max_i):
         print (f"Generating frame {i}")
-        update()
+        ul.update()
 
         if i % int(1 / 60 * fps) == 0:
-            draw(i, u)
+            draw(i, ul.u)
 
         i += 1
