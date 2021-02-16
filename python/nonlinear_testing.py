@@ -5,7 +5,7 @@ import scipy.optimize
 
 np.set_printoptions(suppress=True, edgeitems=10, linewidth=100000)
 
-E = 3.7 * 1E7
+E = 3.7 * 1E5
 v = 0.1
 m = 50 * 3.1
 c = 0.0
@@ -18,27 +18,31 @@ D = np.array([
 ])
 D *= E / (1.0 - v * v)
 
-fps = 60.
+fps = 30.
 dt = 1 / fps
 dt2 = dt * dt
 
 thickness = 1
-d = 1
+
 coords = np.array([
     0, 0,
     0, 1,
     1, 0,
     1, 1,
-    2, 0,
+    1, 2,
+    1, 3,
+    2, 3,
+    2, 2,
     2, 1,
+    2, 0,
     3, 0,
     3, 1,
-    4, 0,
+    3, 2,
+    3, 3,
+    4, 3,
+    4, 2,
     4, 1,
-    5, 0,
-    5, 1,
-    6, 0,
-    6, 1,
+    4, 0,
 ], dtype=np.float64)
 
 C = c * np.eye(len(coords))
@@ -58,10 +62,17 @@ fixed = np.array([
     0, 0,
     0, 0,
     0, 0,
+    0, 0,
+    0, 0,
+    0, 0,
+    0, 0,
 ])
 assert len(fixed) == len(coords), f"{len(fixed)} != {len(coords)}"
 
 def get_triangle(p0, p1, p2):
+    p0 = p0 - 1
+    p1 = p1 - 1
+    p2 = p2 - 1
     return [
         2 * p0, 2 * p0 + 1,
         2 * p1, 2 * p1 + 1,
@@ -74,12 +85,29 @@ def get_triangles(from_i, to_i):
         l.append(get_triangle(i, i + 1, i + 2))
     return l
 
-triangles = get_triangles(0, 12)
-print (triangles)
-u = np.zeros_like(coords)
-u_dot = np.zeros_like(u)
-u_dot_dot = np.zeros_like(u)
-
+triangles = [
+    get_triangle(1, 3, 4),
+    get_triangle(1, 2, 4),
+    get_triangle(3, 4, 9),
+    get_triangle(4, 5, 8),
+    get_triangle(5, 6, 7),
+    get_triangle(5, 8, 7),
+    get_triangle(4, 8, 9),
+    get_triangle(3, 9, 10),
+    get_triangle(10, 9, 12),
+    get_triangle(9, 8, 13),
+    get_triangle(8, 7, 14),
+    get_triangle(8, 14, 13),
+    get_triangle(9, 13, 12),
+    get_triangle(10, 12, 11),
+    get_triangle(11, 12, 17),
+    get_triangle(12, 13, 16),
+    get_triangle(13, 14, 15),
+    get_triangle(13, 15, 16),
+    get_triangle(12, 16, 17),
+    get_triangle(11, 12, 17),
+    get_triangle(11, 17, 18),
+]
 
 def compute_M():
     triangle_volume = 1 * 1 * 1 / 2
@@ -276,14 +304,12 @@ class UpdatedLagrangianMethod(object):
         return gen_global_k(impl)
 
     def stress_forces(self, u):
-        k = self.linear_k(u)
+        k = self.linear_k(u) + self.nonlinear_k(u)
         return k.dot(u)
 
-    def iteration(self, new_u):
+    def iteration(self, new_u, K):
         gravity = np.zeros_like(self.u)
         gravity[1::2] = -9.8 * np.diag(M)[1::2]
-
-        K = generate_nonfixed_matrix(self.linear_k(new_u) + self.nonlinear_k(new_u) + (4 / dt2) * M + (2 / dt) * C)
 
         rhs = gravity - self.stress_forces(new_u)
         rhs -= M.dot((4 / dt2) * (new_u - self.u) - (4 / dt) * self.u_v - self.u_a)
@@ -297,11 +323,13 @@ class UpdatedLagrangianMethod(object):
     def update(self):
         new_u = np.copy(self.u)
 
+        K = generate_nonfixed_matrix(self.linear_k(new_u) + self.nonlinear_k(new_u) + (4 / dt2) * M + (2 / dt) * C)
+
         previous_u = np.zeros_like(new_u)
-        for i in range(5):
-            new_u = self.iteration(new_u)
-            if (np.linalg.norm(new_u - previous_u) < 1E-4):
-                print ("Converged!")
+        for i in range(10):
+            new_u = self.iteration(new_u, K)
+            if (np.linalg.norm(new_u - previous_u) < 1E-6):
+                print (f"Converged after {i} iterations")
                 break
             previous_u = new_u
         else:
@@ -375,7 +403,7 @@ if __name__ == "__main__":
         print (f"Generating frame {i}")
         ul.update()
 
-        if i % int(1 / 60 * fps) == 0:
+        if i % int(1 / 30 * fps) == 0:
             draw(i, ul.u)
 
         i += 1

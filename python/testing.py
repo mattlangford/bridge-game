@@ -4,7 +4,7 @@ import sys
 
 np.set_printoptions(suppress=True, edgeitems=10, linewidth=100000)
 
-E = 3.7 * 1E6
+E = 3.7 * 1E5
 v = 0.1
 m = 50 * 3.1
 c = 0.0
@@ -17,9 +17,11 @@ D = np.array([
 ])
 D *= E / (1.0 - v * v)
 
-fps = 250.
+fps = 60.
 dt = 1 / fps
 dt2 = dt * dt
+
+thickness = 1
 
 coords = np.array([
     0, 0,
@@ -303,12 +305,12 @@ def draw_triangles(u):
     for triangle in triangles:
         x1, y1, x2, y2, x3, y3 = points[triangle]
 
-        stresses = D.dot(b_almansi(u, triangle))
+        stresses = D.dot(b(triangle)).dot(u[triangle])
         stress = np.linalg.norm(stresses)
 
         def color(c):
             return max(min(c, 1.0), 0.0)
-        max_stress = 10000
+        max_stress = 20000
         red = color(stress / max_stress)
         green = color((max_stress - stress) / max_stress)
 
