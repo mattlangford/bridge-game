@@ -5,7 +5,7 @@ import scipy.optimize
 
 np.set_printoptions(suppress=True, edgeitems=10, linewidth=100000)
 
-E = 3.7 * 1E5
+E = 3.7 * 1E6
 v = 0.1
 m = 50 * 3.1
 c = 0.0
@@ -29,20 +29,20 @@ coords = np.array([
     0, 1,
     1, 0,
     1, 1,
-    1, 2,
-    1, 3,
-    2, 3,
-    2, 2,
-    2, 1,
     2, 0,
+    2, 1,
     3, 0,
     3, 1,
-    3, 2,
-    3, 3,
-    4, 3,
-    4, 2,
-    4, 1,
     4, 0,
+    4, 1,
+    5, 0,
+    5, 1,
+    6, 0,
+    6, 1,
+    7, 0,
+    7, 1,
+    8, 0,
+    8, 1,
 ], dtype=np.float64)
 
 C = c * np.eye(len(coords))
@@ -70,9 +70,6 @@ fixed = np.array([
 assert len(fixed) == len(coords), f"{len(fixed)} != {len(coords)}"
 
 def get_triangle(p0, p1, p2):
-    p0 = p0 - 1
-    p1 = p1 - 1
-    p2 = p2 - 1
     return [
         2 * p0, 2 * p0 + 1,
         2 * p1, 2 * p1 + 1,
@@ -85,29 +82,9 @@ def get_triangles(from_i, to_i):
         l.append(get_triangle(i, i + 1, i + 2))
     return l
 
-triangles = [
-    get_triangle(1, 3, 4),
-    get_triangle(1, 2, 4),
-    get_triangle(3, 4, 9),
-    get_triangle(4, 5, 8),
-    get_triangle(5, 6, 7),
-    get_triangle(5, 8, 7),
-    get_triangle(4, 8, 9),
-    get_triangle(3, 9, 10),
-    get_triangle(10, 9, 12),
-    get_triangle(9, 8, 13),
-    get_triangle(8, 7, 14),
-    get_triangle(8, 14, 13),
-    get_triangle(9, 13, 12),
-    get_triangle(10, 12, 11),
-    get_triangle(11, 12, 17),
-    get_triangle(12, 13, 16),
-    get_triangle(13, 14, 15),
-    get_triangle(13, 15, 16),
-    get_triangle(12, 16, 17),
-    get_triangle(11, 12, 17),
-    get_triangle(11, 17, 18),
-]
+triangles = get_triangles(0, 16)
+print (triangles)
+assert max([max(triangle) for triangle in triangles]) < len(coords), f"Needs to be {int(len(coords) / 2 - 1)}"
 
 def compute_M():
     triangle_volume = 1 * 1 * 1 / 2
@@ -195,8 +172,8 @@ class UpdatedLagrangianMethod(object):
     def nonlinear_strains(self, triangle, u):
         _u = u[triangle][::2]
         _v = u[triangle][1::2]
-        _x = coords[triangle][::2]
-        _y = coords[triangle][1::2]
+        _x = coords[triangle][::2] + _u
+        _y = coords[triangle][1::2] + _v
 
         v = np.array([
             [1, _x[0], _y[0]],
@@ -219,8 +196,10 @@ class UpdatedLagrangianMethod(object):
         ])
 
     def nonlinear_b(self, triangle, u):
-        _x = coords[triangle][::2] + u[triangle][::2]
-        _y = coords[triangle][1::2] + u[triangle][1::2]
+        _u = u[triangle][::2]
+        _v = u[triangle][1::2]
+        _x = coords[triangle][::2] + _u
+        _y = coords[triangle][1::2] + _v
 
         v = np.array([
             [1, _x[0], _y[0]],
@@ -239,7 +218,7 @@ class UpdatedLagrangianMethod(object):
 
     def nonlinear_k(self, u):
         def impl(triangle):
-            strains = self.linear_strains(triangle, u)
+            strains = self.nonlinear_strains(triangle, u)
             t11, t22, t12 = D.dot(strains)
             stress_matrix = np.array([
                 [t11, t12,  0,   0],
@@ -307,7 +286,19 @@ class UpdatedLagrangianMethod(object):
         k = self.linear_k(u) + self.nonlinear_k(u)
         return k.dot(u)
 
-    def iteration(self, new_u, K):
+        forces = np.zeros_like(u)
+        for triangle in triangles:
+            strains = self.nonlinear_strains(triangle, u)
+            stress = D.dot(strains)
+            b = self.linear_b(triangle, u)
+            force = b.T.dot(stress)
+
+            for from_i, to_i in enumerate(triangle):
+                forces[to_i] += force[from_i]
+
+        return forces
+
+    def iteration(self, new_u):
         gravity = np.zeros_like(self.u)
         gravity[1::2] = -9.8 * np.diag(M)[1::2]
 
@@ -315,19 +306,27 @@ class UpdatedLagrangianMethod(object):
         rhs -= M.dot((4 / dt2) * (new_u - self.u) - (4 / dt) * self.u_v - self.u_a)
         rhs -= C.dot((2 / dt) * (new_u - self.u) - self.u_v)
 
+        print ("  Linear    :", self.linear_strains(triangles[-1], new_u))
+        print ("  Non linear: ", self.nonlinear_strains(triangles[-1], new_u))
+        # print (f"  Gravity: {generate_nonfixed_vector(gravity)}")
+        # print (f"  Stress : {generate_nonfixed_vector(rhs - gravity)}")
+
+        K = generate_nonfixed_matrix(self.linear_k(new_u) + self.nonlinear_k(new_u) + (4 / dt2) * M + (2 / dt) * C)
         du = np.linalg.inv(K).dot(generate_nonfixed_vector(rhs))
         new_u += generate_full_vector(du, np.zeros_like(self.u))
+
+        # print (f"  Du     : {du}")
+
+        # print (f" Residual: {np.linalg.norm(generate_nonfixed_vector(rhs))}")
 
         return new_u
 
     def update(self):
         new_u = np.copy(self.u)
 
-        K = generate_nonfixed_matrix(self.linear_k(new_u) + self.nonlinear_k(new_u) + (4 / dt2) * M + (2 / dt) * C)
-
         previous_u = np.zeros_like(new_u)
         for i in range(10):
-            new_u = self.iteration(new_u, K)
+            new_u = self.iteration(new_u)
             if (np.linalg.norm(new_u - previous_u) < 1E-6):
                 print (f"Converged after {i} iterations")
                 break
@@ -368,7 +367,8 @@ def draw_triangles(u):
 
         def color(c):
             return max(min(c, 1.0), 0.0)
-        max_stress = 20000
+
+        max_stress = 50000
         red = color(stress / max_stress)
         green = color((max_stress - stress) / max_stress)
 

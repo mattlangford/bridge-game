@@ -4,7 +4,7 @@ import sys
 
 np.set_printoptions(suppress=True, edgeitems=10, linewidth=100000)
 
-E = 3.7 * 1E5
+E = 3.7 * 1E6
 v = 0.1
 m = 50 * 3.1
 c = 0.0
