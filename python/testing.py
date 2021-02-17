@@ -4,7 +4,7 @@ import sys
 
 np.set_printoptions(suppress=True, edgeitems=10, linewidth=100000)
 
-E = 3.7 * 1E6
+E = 3.7 * 1E5
 v = 0.1
 m = 50 * 3.1
 c = 0.0
@@ -17,7 +17,7 @@ D = np.array([
 ])
 D *= E / (1.0 - v * v)
 
-fps = 60.
+fps = 30.
 dt = 1 / fps
 dt2 = dt * dt
 
@@ -43,8 +43,6 @@ coords = np.array([
     4, 1,
     4, 0,
 ], dtype=np.float64)
-
-C = c * np.eye(len(coords))
 
 fixed = np.array([
     1, 1,
@@ -112,7 +110,7 @@ u_dot = np.zeros_like(u)
 u_dot_dot = np.zeros_like(u)
 u_dot_dot[1::2] = -9.8
 
-def M():
+def gen_M():
     triangle_volume = 1 * 1 * 1 / 2
     M = np.zeros((len(coords), len(coords)))
     for triangle in triangles:
@@ -120,6 +118,9 @@ def M():
         for pt in triangle:
             M[pt, pt] += mass
     return M
+
+def gen_C():
+    return c * np.eye(len(coords))
 
 def area(triangle):
     displacements = coords[triangle]# + u[triangle]
@@ -295,8 +296,62 @@ def update_hht(iteration):
     u_dot = generate_full_vector(u_dot_next, np.zeros_like(u_dot))
     u_dot_dot = generate_full_vector(u_dot_dot_next, np.zeros_like(u_dot_dot))
 
+def update_bathe(iteration):
+    global u, u_dot, u_dot_dot
+
+    _M = generate_nonfixed_matrix(M)
+    _C = generate_nonfixed_matrix(C)
+
+    _u = generate_nonfixed_vector(u)
+    _v = generate_nonfixed_vector(u_dot)
+    _a = generate_nonfixed_vector(u_dot_dot)
+
+    a0 = 16.0 / dt2
+    a1 = 4.0 / dt
+    a2 = 9.0 / dt2
+    a3 = 3.0 / dt
+    a4 = 2.0 * a1
+    a5 = 12.0 / dt2
+    a6 = -3.0 / dt2
+    a7 = -1.0 / dt
+
+    def iteration_first():
+        gravity = np.zeros_like(_u)
+        gravity[1::2] = -9.8 * np.diag(_M)[1::2]
+
+        rhs = gravity
+        rhs += _M.dot(a0 * _u + a4 * _v + _a)
+        rhs += _C.dot(a1 * _u + _v)
+
+        _K = generate_nonfixed_matrix(K) + a0 * _M + a1 * _C
+        return np.linalg.inv(_K).dot(rhs)
+
+    def iteration_second(half_u, half_v):
+        gravity = np.zeros_like(_u)
+        gravity[1::2] = -9.8 * np.diag(_M)[1::2]
+
+        rhs = gravity
+        rhs += _M.dot(a5 * half_u + a6 * _u + a1 * half_v + a7 * _v)
+        rhs += _C.dot(a1 * half_u + a7 * _u)
+
+        _K = generate_nonfixed_matrix(K) + a2 * _M + a3 * _C
+        return np.linalg.inv(_K).dot(rhs)
+
+    half_u = iteration_first()
+    half_v = a1 * (half_u - _u) - _v
+
+    next_u = iteration_second(half_u, half_v)
+
+    next_v = -a7 * _u - a1 * half_u + a3 * next_u
+    next_a = -a7 * _v - a1 * half_v + a3 * next_v
+
+    u = generate_full_vector(next_u, np.zeros_like(u))
+    u_dot = generate_full_vector(next_v, np.zeros_like(u_dot))
+    u_dot_dot = generate_full_vector(next_a, np.zeros_like(u_dot_dot))
+
 K = gen_K()
-M = M()
+M = gen_M()
+C = gen_C()
 
 def draw_triangles(u):
     points = coords + u
@@ -310,13 +365,13 @@ def draw_triangles(u):
 
         def color(c):
             return max(min(c, 1.0), 0.0)
-        max_stress = 20000
+        max_stress = 50000
         red = color(stress / max_stress)
         green = color((max_stress - stress) / max_stress)
 
         plt.fill((x1, x2, x3), (y1, y2, y3), facecolor=(red, green, 0.0), edgecolor="black", linewidth=1, zorder=-10)
 
-    plt.quiver(points[::2], points[1::2], forces[::2], forces[1::2], color="black")
+    # plt.quiver(points[::2], points[1::2], forces[::2], forces[1::2], color="black")
     plt.scatter(points[::2], points[1::2], color=["red" if i == 1 else "blue" for i in fixed[::2]])
 
 def draw_k_matrix():
@@ -343,6 +398,8 @@ def draw_k_matrix():
 
 def draw(i, u):
     plt.clf()
+    plt.gca().set_aspect('equal', adjustable='box')
+
     print (f"Saving frame {i}")
     plt.xlim(min(coords) - 2, max(coords) + 2)
     plt.ylim(min(coords) - 2, max(coords) + 2)
@@ -373,11 +430,10 @@ if __name__ == "__main__":
 
     for i in range(max_i):
         print (f"Generating frame {i}")
-        update_newmark(i)
+        update_bathe(i)
         if initial_energy is None:
             initial_energy = compute_energy(u, u_dot)
         print (f"Total Energy: initial: {initial_energy}, at {i}: {compute_energy(u, u_dot)}", )
-        print (f"u: {u}")
 
         if i % int(1 / 30 * fps) == 0:
             draw(i, u)

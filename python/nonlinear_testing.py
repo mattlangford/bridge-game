@@ -5,7 +5,7 @@ import scipy.optimize
 
 np.set_printoptions(suppress=True, edgeitems=10, linewidth=100000)
 
-E = 3.7 * 1E6
+E = 3.7 * 1E5
 v = 0.1
 m = 50 * 3.1
 c = 0.0
@@ -18,7 +18,7 @@ D = np.array([
 ])
 D *= E / (1.0 - v * v)
 
-fps = 30.
+fps = 60.
 dt = 1 / fps
 dt2 = dt * dt
 
@@ -29,23 +29,21 @@ coords = np.array([
     0, 1,
     1, 0,
     1, 1,
-    2, 0,
+    1, 2,
+    1, 3,
+    2, 3,
+    2, 2,
     2, 1,
+    2, 0,
     3, 0,
     3, 1,
-    4, 0,
+    3, 2,
+    3, 3,
+    4, 3,
+    4, 2,
     4, 1,
-    5, 0,
-    5, 1,
-    6, 0,
-    6, 1,
-    7, 0,
-    7, 1,
-    8, 0,
-    8, 1,
+    4, 0,
 ], dtype=np.float64)
-
-C = c * np.eye(len(coords))
 
 fixed = np.array([
     1, 1,
@@ -70,6 +68,9 @@ fixed = np.array([
 assert len(fixed) == len(coords), f"{len(fixed)} != {len(coords)}"
 
 def get_triangle(p0, p1, p2):
+    p0 = p0 - 1
+    p1 = p1 - 1
+    p2 = p2 - 1
     return [
         2 * p0, 2 * p0 + 1,
         2 * p1, 2 * p1 + 1,
@@ -82,8 +83,46 @@ def get_triangles(from_i, to_i):
         l.append(get_triangle(i, i + 1, i + 2))
     return l
 
-triangles = get_triangles(0, 16)
-print (triangles)
+triangles = [
+    get_triangle(1, 3, 4),
+    get_triangle(1, 2, 4),
+    get_triangle(3, 4, 9),
+    get_triangle(4, 5, 8),
+    get_triangle(5, 6, 7),
+    get_triangle(5, 8, 7),
+    get_triangle(4, 8, 9),
+    get_triangle(3, 9, 10),
+    get_triangle(10, 9, 12),
+    get_triangle(9, 8, 13),
+    get_triangle(8, 7, 14),
+    get_triangle(8, 14, 13),
+    get_triangle(9, 13, 12),
+    get_triangle(10, 12, 11),
+    get_triangle(11, 12, 17),
+    get_triangle(12, 13, 16),
+    get_triangle(13, 14, 15),
+    get_triangle(13, 15, 16),
+    get_triangle(12, 16, 17),
+    get_triangle(11, 12, 17),
+    get_triangle(11, 17, 18),
+]
+assert len(fixed) == len(coords), f"{len(fixed)} != {len(coords)}"
+
+def get_triangle(p0, p1, p2):
+    return [
+        2 * p0, 2 * p0 + 1,
+        2 * p1, 2 * p1 + 1,
+        2 * p2, 2 * p2 + 1
+    ]
+
+def get_triangles(from_i, to_i):
+    l = []
+    for i in range(from_i, to_i):
+        l.append(get_triangle(i, i + 1, i + 2))
+    return l
+
+# triangles = get_triangles(0, 16)
+# print (triangles)
 assert max([max(triangle) for triangle in triangles]) < len(coords), f"Needs to be {int(len(coords) / 2 - 1)}"
 
 def compute_M():
@@ -95,6 +134,11 @@ def compute_M():
             M[pt, pt] += mass
     return M
 M = compute_M()
+
+
+def compute_C():
+    return c * np.eye(len(coords))
+C = compute_C()
 
 
 def area(triangle, u):
@@ -162,12 +206,12 @@ def gen_global_k(gen_local):
                 K[triangle[col], triangle[row]] += local_k[row, col]
     return K
 
-# [2] Table 6.5 B
-class UpdatedLagrangianMethod(object):
+# [2] Table 6.5 A
+class TotalLagrangianMethod(object):
     def __init__(self):
         self.u = np.zeros_like(coords)
-        self.u_v = np.zeros_like(coords)
-        self.u_a = np.zeros_like(coords)
+        self.v = np.zeros_like(coords)
+        self.a = np.zeros_like(coords)
 
     def nonlinear_strains(self, triangle, u):
         _u = u[triangle][::2]
@@ -230,7 +274,45 @@ class UpdatedLagrangianMethod(object):
             return thickness * area(triangle, u) * b.T.dot(stress_matrix).dot(b)
         return gen_global_k(impl)
 
-    def linear_strains(self, triangle, u):
+    def linear_b(self, triangle, u):
+        _u = u[triangle][::2]
+        _v = u[triangle][1::2]
+        _x = coords[triangle][::2] + _u
+        _y = coords[triangle][1::2] + _v
+
+        v = np.array([
+            [1, _x[0], _y[0]],
+            [1, _x[1], _y[1]],
+            [1, _x[2], _y[2]],
+        ])
+        inv_v = np.linalg.inv(v)
+        a0, a1, a2, b0, b1, b2, c0, c1, c2 = inv_v.flatten()
+
+        return np.array([
+            [b0,  0, b1,  0, b2,  0],
+            [ 0, c0,  0, c1,  0, c2],
+            [c0, b0, c1, b1, c2, b2]
+        ])
+
+    def linear_k(self, u):
+        def impl(triangle):
+            b = self.linear_b(triangle, u)
+            return thickness * area(triangle, u) * b.T.dot(D).dot(b)
+        return gen_global_k(impl)
+
+    def stress_forces(self, u):
+        k = self.linear_k(u) + self.nonlinear_k(u)
+        return k.dot(u)
+
+
+# [2] Table 6.5 B
+class UpdatedLagrangianMethod(object):
+    def __init__(self):
+        self.u = np.zeros_like(coords)
+        self.v = np.zeros_like(coords)
+        self.a = np.zeros_like(coords)
+
+    def nonlinear_strains(self, triangle, u):
         _u = u[triangle][::2]
         _v = u[triangle][1::2]
         _x = coords[triangle][::2] + _u
@@ -251,10 +333,45 @@ class UpdatedLagrangianMethod(object):
         dv_dy = (1 / det_v) * (c0 * _v[0] + c1 * _v[1] + c2 * _v[2])
 
         return np.array([
-            du_dx,
-            dv_dy,
-            0.5 * (du_dy + dv_dx)
+            du_dx + 0.5 * (du_dx ** 2 + dv_dx ** 2),
+            dv_dy + 0.5 * (du_dx ** 2 + dv_dx ** 2),
+            2 * (0.5 * (du_dy + dv_dx) + 0.5 * (du_dx * du_dy + dv_dx * dv_dy))
         ])
+
+    def nonlinear_b(self, triangle, u):
+        _u = u[triangle][::2]
+        _v = u[triangle][1::2]
+        _x = coords[triangle][::2] + _u
+        _y = coords[triangle][1::2] + _v
+
+        v = np.array([
+            [1, _x[0], _y[0]],
+            [1, _x[1], _y[1]],
+            [1, _x[2], _y[2]],
+        ])
+        inv_v = np.linalg.inv(v)
+        a0, a1, a2, b0, b1, b2, c0, c1, c2 = inv_v.flatten()
+
+        return np.array([
+            [b0,  0, b1,  0, b2,  0],
+            [c0,  0, c1,  0, c2,  0],
+            [ 0, b0,  0, b1,  0, b2],
+            [ 0, c0,  0, c1,  0, c2],
+        ])
+
+    def nonlinear_k(self, u):
+        def impl(triangle):
+            strains = self.nonlinear_strains(triangle, u)
+            t11, t22, t12 = D.dot(strains)
+            stress_matrix = np.array([
+                [t11, t12,  0,   0],
+                [t12, t22,  0,   0],
+                [  0,  0, t11, t12],
+                [  0,  0, t12, t22],
+            ])
+            b = self.nonlinear_b(triangle, u)
+            return thickness * area(triangle, u) * b.T.dot(stress_matrix).dot(b)
+        return gen_global_k(impl)
 
     def linear_b(self, triangle, u):
         _u = u[triangle][::2]
@@ -286,71 +403,143 @@ class UpdatedLagrangianMethod(object):
         k = self.linear_k(u) + self.nonlinear_k(u)
         return k.dot(u)
 
-        forces = np.zeros_like(u)
-        for triangle in triangles:
-            strains = self.nonlinear_strains(triangle, u)
-            stress = D.dot(strains)
-            b = self.linear_b(triangle, u)
-            force = b.T.dot(stress)
 
-            for from_i, to_i in enumerate(triangle):
-                forces[to_i] += force[from_i]
+def update_newmark(interface):
+    def iteration(next_u):
+        u = interface.u
+        v = interface.v
+        a = interface.a
 
-        return forces
-
-    def iteration(self, new_u):
-        gravity = np.zeros_like(self.u)
+        gravity = np.zeros_like(u)
         gravity[1::2] = -9.8 * np.diag(M)[1::2]
 
-        rhs = gravity - self.stress_forces(new_u)
-        rhs -= M.dot((4 / dt2) * (new_u - self.u) - (4 / dt) * self.u_v - self.u_a)
-        rhs -= C.dot((2 / dt) * (new_u - self.u) - self.u_v)
+        rhs = gravity - interface.stress_forces(next_u)
+        rhs -= M.dot((4 / dt2) * (next_u - u) - (4 / dt) * v - a)
+        rhs -= C.dot((2 / dt) * (next_u - u) - v)
 
-        print ("  Linear    :", self.linear_strains(triangles[-1], new_u))
-        print ("  Non linear: ", self.nonlinear_strains(triangles[-1], new_u))
+        # print ("  Linear    :", self.linear_strains(triangles[-1], next_u))
+        # print ("  Non linear: ", self.nonlinear_strains(triangles[-1], next_u))
         # print (f"  Gravity: {generate_nonfixed_vector(gravity)}")
         # print (f"  Stress : {generate_nonfixed_vector(rhs - gravity)}")
 
-        K = generate_nonfixed_matrix(self.linear_k(new_u) + self.nonlinear_k(new_u) + (4 / dt2) * M + (2 / dt) * C)
+        K = generate_nonfixed_matrix(interface.linear_k(next_u) + interface.nonlinear_k(next_u) + (4 / dt2) * M + (2 / dt) * C)
         du = np.linalg.inv(K).dot(generate_nonfixed_vector(rhs))
-        new_u += generate_full_vector(du, np.zeros_like(self.u))
-
-        # print (f"  Du     : {du}")
+        next_u += generate_full_vector(du, np.zeros_like(u))
 
         # print (f" Residual: {np.linalg.norm(generate_nonfixed_vector(rhs))}")
 
-        return new_u
+        return next_u
 
-    def update(self):
-        new_u = np.copy(self.u)
+    next_u = np.zeros_like(interface.u)
 
-        previous_u = np.zeros_like(new_u)
-        for i in range(10):
-            new_u = self.iteration(new_u)
-            if (np.linalg.norm(new_u - previous_u) < 1E-6):
-                print (f"Converged after {i} iterations")
-                break
-            previous_u = new_u
-        else:
-            print ("Failed to converge.")
+    previous_u = np.zeros_like(next_u)
+    for i in range(10):
+        next_u = iteration(next_u)
+        if (np.linalg.norm(next_u - previous_u) < 1E-8):
+            print (f"Converged after {i + 1} iterations")
+            break
+        previous_u = next_u
+    else:
+        print ("Failed to converge.")
 
-        alpha = 0.5
-        beta = 0.25 * (0.5 + alpha) ** 2.0
+    next_u = generate_nonfixed_vector(next_u)
+    u = generate_nonfixed_vector(interface.u)
+    v = generate_nonfixed_vector(interface.v)
+    a = generate_nonfixed_vector(interface.a)
 
-        new_u = generate_nonfixed_vector(new_u)
-        u = generate_nonfixed_vector(self.u)
-        u_v = generate_nonfixed_vector(self.u_v)
-        u_a = generate_nonfixed_vector(self.u_a)
+    next_a = (4 / dt2) * (next_u - u) - (4 / dt) * v - a
+    next_v = v + dt / 2 * (a + next_a)
 
-        n_1 = u_v + (1 - alpha) * dt * u_a
-        n_2 = u + u_v * dt + (0.5 - beta) * dt * dt * u_a
+    interface.u = generate_full_vector(next_u, np.zeros_like(interface.u))
+    interface.v = generate_full_vector(next_v, np.zeros_like(interface.v))
+    interface.a = generate_full_vector(next_a, np.zeros_like(interface.a))
 
-        new_u_a = (new_u - n_2) / (beta * dt2)
-        new_u_v = n_1 + alpha * new_u_a * dt
+def update_bathe(interface):
+    M = generate_nonfixed_matrix(compute_M())
+    C = generate_nonfixed_matrix(compute_C())
 
-        self.u = generate_full_vector(new_u, np.zeros_like(self.u))
-        self.u_v = generate_full_vector(new_u_v, np.zeros_like(self.u_v))
-        self.u_a = generate_full_vector(new_u_a, np.zeros_like(self.u_a))
+    u = generate_nonfixed_vector(interface.u)
+    v = generate_nonfixed_vector(interface.v)
+    a = generate_nonfixed_vector(interface.a)
+
+    a0 = 16.0 / dt2
+    a1 = 4.0 / dt
+    a2 = 9.0 / dt2
+    a3 = 3.0 / dt
+    a4 = 2.0 * a1
+    a5 = 12.0 / dt2
+    a6 = -3.0 / dt2
+    a7 = -1.0 / dt
+
+    def iteration_first(half_u):
+        gravity = np.zeros_like(u)
+        gravity[1::2] = -9.8 * np.diag(M)[1::2]
+
+        half_u_full = generate_full_vector(half_u, np.zeros(len(coords)))
+
+        rhs = gravity - generate_nonfixed_vector(interface.stress_forces(half_u_full))
+        rhs -= M.dot(a0 * (half_u - u) - a4 * v - a)
+        rhs -= C.dot(a1 * (half_u - u) - v)
+
+        K = generate_nonfixed_matrix(interface.linear_k(half_u_full) + interface.nonlinear_k(half_u_full)) + a0 * M + a1 * C
+        du = np.linalg.inv(K).dot(rhs)
+        half_u += du
+
+        return half_u
+
+    c1 = 0.5 / (0.5 * dt)
+    c2 = -1 / ((1 - 0.5) * 0.5 * dt)
+    c3 = (2 - 0.5) / ((1 - 0.5) * dt)
+    def iteration_second(next_u, half_u, half_v):
+        gravity = np.zeros_like(u)
+        gravity[1::2] = -9.8 * np.diag(M)[1::2]
+
+        next_u_full = generate_full_vector(next_u, np.zeros(len(coords)))
+
+        rhs = gravity - generate_nonfixed_vector(interface.stress_forces(next_u_full))
+        rhs -= M.dot(c3 * c3 * next_u + c3 * c2 * half_u + c3 * c1 * u + c2 * half_v + c1 * v)
+        rhs -= C.dot(c1 * u + c2 * half_u + c3 * next_u)
+
+        K = generate_nonfixed_matrix(interface.linear_k(next_u_full) + interface.nonlinear_k(next_u_full)) + c3 * c3 * M + c3 * C
+        du = np.linalg.inv(K).dot(rhs)
+        next_u += du
+
+        return next_u
+
+    half_u = np.zeros_like(u)
+    next_u = np.zeros_like(u)
+
+    previous_u = np.zeros_like(half_u)
+
+    # First iteration
+    for i in range(10):
+        half_u = iteration_first(half_u)
+        if (np.linalg.norm(half_u - previous_u) < 1E-8):
+            print (f"Converged after {i + 1} iteration(s)")
+            break
+        previous_u = half_u
+    else:
+        print ("Failed to converge.")
+
+    half_v = a1 * (half_u - u) - v
+
+    # Second iteration
+    previous_u = np.zeros_like(previous_u)
+    for i in range(10):
+        next_u = iteration_second(next_u, half_u, half_v)
+        if (np.linalg.norm(next_u - previous_u) < 1E-8):
+            print (f"Converged after {i + 1} iteration(s)")
+            break
+        previous_u = next_u
+    else:
+        print ("Failed to converge.")
+
+    next_v = c1 * u + c2 * half_u + c3 * next_u
+    next_a = c1 * v + c2 * half_v + c3 * next_v
+
+    interface.u = generate_full_vector(next_u, np.zeros_like(interface.u))
+    interface.v = generate_full_vector(next_v, np.zeros_like(interface.v))
+    interface.a = generate_full_vector(next_a, np.zeros_like(interface.a))
 
 
 def draw_triangles(u):
@@ -376,6 +565,16 @@ def draw_triangles(u):
 
     plt.scatter(points[::2], points[1::2], color=["red" if i == 1 else "blue" for i in fixed[::2]])
 
+def compute_energy(interface):
+    u = interface.u
+    v = interface.v
+
+    K = interface.linear_k(u) + interface.nonlinear_k(u)
+
+    kinetic_energy = 0.5 * v.transpose().dot(M).dot(v)
+    strain_potential_energy = 0.5 * u.transpose().dot(K).dot(u)
+    gravitational_potential_energy = 9.8 * np.sum(M.dot(u)[1::2])
+    return kinetic_energy + strain_potential_energy + gravitational_potential_energy
 
 def draw(i, u):
     plt.clf()
@@ -399,9 +598,14 @@ if __name__ == "__main__":
     if len(sys.argv) == 2:
         max_i = int(sys.argv[1])
 
+    initial_energy = None
     for i in range(max_i):
         print (f"Generating frame {i}")
-        ul.update()
+        update_bathe(ul)
+
+        if initial_energy is None:
+            initial_energy = compute_energy(ul)
+        print (f"Total Energy: initial: {initial_energy}, at {i}: {compute_energy(ul)}", )
 
         if i % int(1 / 30 * fps) == 0:
             draw(i, ul.u)
