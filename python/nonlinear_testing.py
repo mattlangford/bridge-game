@@ -18,7 +18,7 @@ D = np.array([
 ])
 D *= E / (1.0 - v * v)
 
-fps = 60.
+fps = 30.
 dt = 1 / fps
 dt2 = dt * dt
 
@@ -156,6 +156,8 @@ def area(triangle, u):
     det_j = x(1, 3) * y(2, 3) - y(1, 3) * x(2, 3)
     return 0.5 * abs(det_j)
 
+def area0(triangle):
+    return area(triangle, np.zeros_like(coords))
 
 def generate_nonfixed_matrix(matrix):
     coords_map = []
@@ -206,19 +208,42 @@ def gen_global_k(gen_local):
                 K[triangle[col], triangle[row]] += local_k[row, col]
     return K
 
-# [2] Table 6.5 A
+# [2] Table 6.5 B
 class TotalLagrangianMethod(object):
     def __init__(self):
         self.u = np.zeros_like(coords)
         self.v = np.zeros_like(coords)
         self.a = np.zeros_like(coords)
 
+    def _shape_function_jacobian(self, triangle):
+        _x = coords[triangle][::2]
+        _y = coords[triangle][1::2]
+
+        v = np.array([
+            [1, _x[0], _y[0]],
+            [1, _x[1], _y[1]],
+            [1, _x[2], _y[2]],
+        ])
+        inv_v = np.linalg.inv(v)
+
     def nonlinear_strains(self, triangle, u):
+        # Incremental u, v
         _u = u[triangle][::2]
         _v = u[triangle][1::2]
-        _x = coords[triangle][::2] + _u
-        _y = coords[triangle][1::2] + _v
+        # u, v at time T
+        _u_t = self.u[triangle][::2]
+        _v_t = self.u[triangle][1::2]
+        # Initial coordinates
+        _x = coords[triangle][::2]
+        _y = coords[triangle][1::2]
 
+        # We're trying to solve for a, b, c where
+        #   u0 = a + b*x0 + c*y0
+        #   u1 = a + b*x1 + c*y1
+        #   u2 = a + b*x2 + c*y2
+        # or in matrix form:
+        #   [u0, u1, u2] = v(x, y) * [a, b, c]
+        #   [a, b, c] = v(x, y)^-1 * [u0, u1, u2]
         v = np.array([
             [1, _x[0], _y[0]],
             [1, _x[1], _y[1]],
@@ -228,6 +253,13 @@ class TotalLagrangianMethod(object):
         inv_v = np.linalg.inv(v)
         a0, a1, a2, b0, b1, b2, c0, c1, c2 = inv_v.flatten()
 
+        # So now we can write the displacement functions as:
+        #   N0(x, y) = h0(x, y) = (a0 + b0 * x0 + c0 * y0)
+        #   N1(x, y) = h1(x, y) = (a1 + b1 * x1 + c1 * y1)
+        #   N2(x, y) = h2(x, y) = (a2 + b2 * x2 + c2 * y2)
+        # where:
+        #   u(x, y) = N0(x, y) * u0 + N1(x, y) * u1 + N2(x, y) * u2
+
         du_dx = (1 / det_v) * (b0 * _u[0] + b1 * _u[1] + b2 * _u[2])
         du_dy = (1 / det_v) * (c0 * _u[0] + c1 * _u[1] + c2 * _u[2])
         dv_dx = (1 / det_v) * (b0 * _v[0] + b1 * _v[1] + b2 * _v[2])
@@ -236,7 +268,7 @@ class TotalLagrangianMethod(object):
         return np.array([
             du_dx + 0.5 * (du_dx ** 2 + dv_dx ** 2),
             dv_dy + 0.5 * (du_dx ** 2 + dv_dx ** 2),
-            0.5 * (du_dy + dv_dx) + 0.5 * (du_dx * du_dy + dv_dx * dv_dy)
+            2 * (0.5 * (du_dy + dv_dx) + 0.5 * (du_dx * du_dy + dv_dx * dv_dy))
         ])
 
     def nonlinear_b(self, triangle, u):
@@ -271,7 +303,7 @@ class TotalLagrangianMethod(object):
                 [  0,  0, t12, t22],
             ])
             b = self.nonlinear_b(triangle, u)
-            return thickness * area(triangle, u) * b.T.dot(stress_matrix).dot(b)
+            return thickness * area0(triangle) * b.T.dot(stress_matrix).dot(b)
         return gen_global_k(impl)
 
     def linear_b(self, triangle, u):
@@ -297,13 +329,31 @@ class TotalLagrangianMethod(object):
     def linear_k(self, u):
         def impl(triangle):
             b = self.linear_b(triangle, u)
-            return thickness * area(triangle, u) * b.T.dot(D).dot(b)
+            return thickness * area0(triangle) * b.T.dot(D).dot(b)
         return gen_global_k(impl)
 
     def stress_forces(self, u):
-        k = self.linear_k(u) + self.nonlinear_k(u)
-        return k.dot(u)
+        return (self.linear_k(u) + self.nonlinear_k(u)).dot(u)
 
+        forces = np.zeros_like(u)
+        for triangle in triangles:
+            strains = self.nonlinear_strains(triangle, u)
+            stress = D.dot(strains)
+            b = self.linear_b(triangle, u)
+            force = thickness * area(triangle, u) * b.T.dot(stress)
+
+            print ("      U: ", u[triangle])
+            print ("  Force: ", force)
+            print ("Strains: ", strains)
+            print (" Stress: ", stress)
+            print ("")
+
+            for from_i, to_i in enumerate(triangle):
+                if fixed[to_i]:
+                    continue
+                forces[to_i] += force[from_i]
+
+        return forces
 
 # [2] Table 6.5 B
 class UpdatedLagrangianMethod(object):
@@ -327,10 +377,10 @@ class UpdatedLagrangianMethod(object):
         inv_v = np.linalg.inv(v)
         a0, a1, a2, b0, b1, b2, c0, c1, c2 = inv_v.flatten()
 
-        du_dx = (1 / det_v) * (b0 * _u[0] + b1 * _u[1] + b2 * _u[2])
-        du_dy = (1 / det_v) * (c0 * _u[0] + c1 * _u[1] + c2 * _u[2])
-        dv_dx = (1 / det_v) * (b0 * _v[0] + b1 * _v[1] + b2 * _v[2])
-        dv_dy = (1 / det_v) * (c0 * _v[0] + c1 * _v[1] + c2 * _v[2])
+        du_dx = b0 * _u[0] + b1 * _u[1] + b2 * _u[2]
+        du_dy = c0 * _u[0] + c1 * _u[1] + c2 * _u[2]
+        dv_dx = b0 * _v[0] + b1 * _v[1] + b2 * _v[2]
+        dv_dy = c0 * _v[0] + c1 * _v[1] + c2 * _v[2]
 
         return np.array([
             du_dx + 0.5 * (du_dx ** 2 + dv_dx ** 2),
@@ -400,8 +450,21 @@ class UpdatedLagrangianMethod(object):
         return gen_global_k(impl)
 
     def stress_forces(self, u):
-        k = self.linear_k(u) + self.nonlinear_k(u)
-        return k.dot(u)
+        return (self.linear_k(u) + self.nonlinear_k(u)).dot(u)
+
+        forces = np.zeros_like(u)
+        for triangle in triangles:
+            strains = self.nonlinear_strains(triangle, u)
+            stress = D.dot(strains)
+            b = self.linear_b(triangle, u)
+            force = thickness * area(triangle, u) * b.T.dot(stress)
+
+            for from_i, to_i in enumerate(triangle):
+                if fixed[to_i]:
+                    continue
+                forces[to_i] += force[from_i]
+
+        return forces
 
 
 def update_newmark(interface):
