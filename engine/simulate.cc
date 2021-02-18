@@ -84,11 +84,11 @@ auto TriangleStressHelpers::generate_local_to_global_mapping() const -> std::vec
 //
 
 void TriangleStressHelpers::populate_local_stiffness(GlobalKMatrix &global_k) const {
-    static constexpr double kThickness = 1; //common::kBlockSize;  // meters
+    static constexpr double kThickness = 1;  // common::kBlockSize;  // meters
 
     const BMatrix B = generate_B();
     const size_t num_displacements = context.state.displacements.size();
-    double area=  0.5f * common::kBlockSize * common::kBlockSize;
+    double area = 0.5f * common::kBlockSize * common::kBlockSize;
 
     // [1] 4.66
     LocalKMatrix local_k = kThickness * area * B.transpose() * generate_D() * B;
@@ -155,8 +155,7 @@ BMatrix TriangleStressHelpers::generate_B() const {
 // #############################################################################
 //
 
-Eigen::Vector3d TriangleStressHelpers::generate_almansi_stress(const Eigen::Matrix<double, 6, 1>& u) const
-{
+Eigen::Vector3d TriangleStressHelpers::generate_almansi_stress(const Eigen::Matrix<double, 6, 1> &u) const {
     const double inv_det_j = 1.0 / (x(1, 3) * y(2, 3) - y(1, 3) * x(2, 3));
 
     const double du_dx = inv_det_j * (y(2, 3) * (u[0] - u[4]) - y(1, 3) * (u[2] - u[4]));
@@ -164,11 +163,8 @@ Eigen::Vector3d TriangleStressHelpers::generate_almansi_stress(const Eigen::Matr
     const double dv_dx = inv_det_j * (y(2, 3) * (u[1] - u[5]) - y(1, 3) * (u[3] - u[5]));
     const double dv_dy = inv_det_j * (-x(2, 3) * (u[1] - u[5]) + x(1, 3) * (u[3] - u[5]));
 
-    return Eigen::Vector3d{
-        du_dx - 0.5 * (du_dx * du_dx + dv_dx * dv_dx),
-        dv_dy - 0.5 * (du_dy * du_dy + dv_dy * dv_dy),
-        0.5 * (du_dy + dv_dx - (du_dx * du_dy + dv_dx * dv_dy))
-    };
+    return Eigen::Vector3d{du_dx - 0.5 * (du_dx * du_dx + dv_dx * dv_dx), dv_dy - 0.5 * (du_dy * du_dy + dv_dy * dv_dy),
+                           0.5 * (du_dy + dv_dx - (du_dx * du_dy + dv_dx * dv_dy))};
 }
 
 //
@@ -336,8 +332,9 @@ void Simulator::step(const double dt) {
     if (!context) return;
 
     // [2] Table 9.3 A.5/6
-    // context->cache.K_solver.compute(generate_global_stiffness_matrix(*context) + MeshStepper::kA0 * context->cache.mass + MeshStepper::kA1 * context->cache.damping);
-    // if (context->cache.K_solver.info() != Eigen::Success) {
+    // context->cache.K_solver.compute(generate_global_stiffness_matrix(*context) + MeshStepper::kA0 *
+    // context->cache.mass + MeshStepper::kA1 * context->cache.damping); if (context->cache.K_solver.info() !=
+    // Eigen::Success) {
     //     throw std::runtime_error("Decomposition Failed!");
     // }
 
@@ -351,8 +348,8 @@ void Simulator::step(const double dt) {
         gravity += -9.8 * mass.diagonal()[i] * -state.displacements[i];
     }
     const double total_energy = kinetic + strain + gravity;
-    std::cout << "Total energy : " << total_energy << " (KE:" << kinetic << ", gPE: " << gravity << ", sPE: " <<
-    strain << ")\n";
+    // std::cout << "Total energy : " << total_energy << " (KE:" << kinetic << ", gPE: " << gravity << ", sPE: " <<
+    // strain << ")\n";
 
     const size_t num_steps = dt / MeshStepper::kDt;
     for (size_t i = 0; i < num_steps; ++i) {
@@ -371,7 +368,6 @@ void Simulator::step(const double dt) {
     for (auto [i, triangle] : it::enumerate(triangles)) {
         triangle_stresses.row(i) = compute_stress(triangle);
     }
-
 }
 
 //

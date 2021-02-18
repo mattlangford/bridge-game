@@ -22,7 +22,7 @@ static constexpr size_t kNumWBlocks = kWidth / kPxSize;
 static constexpr size_t kNumHBlocks = kHeight / kPxSize;
 
 /// Triangle destruction is a bit buggy at the moment, so only enable it for testing
-static constexpr bool kEnableTriangleDestruction = true;
+static constexpr bool kEnableTriangleDestruction = false;
 
 /// Used for the damping matrix
 static constexpr double kDampingFactor = 0.0;

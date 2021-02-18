@@ -1,24 +1,22 @@
+#include "engine/simulate.hh"
+
 #include <GLFW/glfw3.h>
 
 #include "common/config.hh"
 #include "common/material.hh"
 #include "engine/context.hh"
-#include "engine/simulate.hh"
 
-void draw_k_matrix(const SimulationContext& context)
-{
+void draw_k_matrix(const SimulationContext& context) {
     const auto& cache = context.cache;
     const auto& mesh = context.mesh;
 
     double max = context.cache.K.coeffs().maxCoeff();
     glBegin(GL_LINES);
     std::cout << Eigen::MatrixXd(context.cache.K) << "\n";
-    for (size_t from = 0; from < mesh.vertices.size(); from+=2)
-    {
+    for (size_t from = 0; from < mesh.vertices.size(); from += 2) {
         auto d_from = cache.vertex_to_displacements[from];
         if (d_from >= context.state.num_nodes) continue;
-        for (size_t to = 0; to < mesh.vertices.size(); to+=2)
-        {
+        for (size_t to = 0; to < mesh.vertices.size(); to += 2) {
             auto d_to = cache.vertex_to_displacements[to];
             if (d_to >= context.state.num_nodes) continue;
 
@@ -34,7 +32,8 @@ void draw_k_matrix(const SimulationContext& context)
 
             float color = element / max;
             glColor3f(color, color, color);
-            std::cout << "from: " << d_from << " to: " << d_to << " start: " << start_x << ", " << start_y << " to end: " << end_x << ", " <<  end_y << " mag: " << element <<"\n";
+            std::cout << "from: " << d_from << " to: " << d_to << " start: " << start_x << ", " << start_y
+                      << " to end: " << end_x << ", " << end_y << " mag: " << element << "\n";
             glVertex2f(start_x, start_y);
             glVertex2f(end_x, end_y);
         }
@@ -59,12 +58,9 @@ void draw(const SimulationContext& context) {
 
             // Here we scale the actual max stress down a bit so it turns bright red before breaking
             const float max_stress = common::get_properties(triangle.material).max_stress;
-            if (stress > max_stress)
-            {
+            if (stress > max_stress) {
                 glColor3f(0.f, 0.f, 0.f);
-            }
-            else
-            {
+            } else {
                 // 0 when stress is 0, 1 when stress is high
                 const float red = static_cast<float>(stress / max_stress);
                 // 1 when stress is 0, 0 when stress is high
