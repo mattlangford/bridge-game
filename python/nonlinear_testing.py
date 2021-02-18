@@ -215,22 +215,11 @@ class TotalLagrangianMethod(object):
         self.v = np.zeros_like(coords)
         self.a = np.zeros_like(coords)
 
-    def _shape_function_jacobian(self, triangle):
-        _x = coords[triangle][::2]
-        _y = coords[triangle][1::2]
-
-        v = np.array([
-            [1, _x[0], _y[0]],
-            [1, _x[1], _y[1]],
-            [1, _x[2], _y[2]],
-        ])
-        inv_v = np.linalg.inv(v)
-
     def nonlinear_strains(self, triangle, u):
         # Incremental u, v
         _u = u[triangle][::2]
         _v = u[triangle][1::2]
-        # u, v at time T
+        # u, v at the previous timestamp
         _u_t = self.u[triangle][::2]
         _v_t = self.u[triangle][1::2]
         # Initial coordinates
@@ -242,16 +231,15 @@ class TotalLagrangianMethod(object):
         #   u1 = a + b*x1 + c*y1
         #   u2 = a + b*x2 + c*y2
         # or in matrix form:
-        #   [u0, u1, u2] = v(x, y) * [a, b, c]
-        #   [a, b, c] = v(x, y)^-1 * [u0, u1, u2]
-        v = np.array([
+        #   [u0, u1, u2] = Q(x, y) * [a, b, c]
+        #   [a, b, c] = Q(x, y)^-1 * [u0, u1, u2]
+        Q = np.array([
             [1, _x[0], _y[0]],
             [1, _x[1], _y[1]],
             [1, _x[2], _y[2]],
         ])
-        det_v = np.linalg.det(v)
-        inv_v = np.linalg.inv(v)
-        a0, a1, a2, b0, b1, b2, c0, c1, c2 = inv_v.flatten()
+        inv_Q = np.linalg.inv(Q)
+        a0, a1, a2, b0, b1, b2, c0, c1, c2 = inv_Q.flatten()
 
         # So now we can write the displacement functions as:
         #   N0(x, y) = h0(x, y) = (a0 + b0 * x0 + c0 * y0)
@@ -259,23 +247,45 @@ class TotalLagrangianMethod(object):
         #   N2(x, y) = h2(x, y) = (a2 + b2 * x2 + c2 * y2)
         # where:
         #   u(x, y) = N0(x, y) * u0 + N1(x, y) * u1 + N2(x, y) * u2
+        #   v(x, y) = N0(x, y) * v0 + N1(x, y) * v1 + N2(x, y) * v2
 
-        du_dx = (1 / det_v) * (b0 * _u[0] + b1 * _u[1] + b2 * _u[2])
-        du_dy = (1 / det_v) * (c0 * _u[0] + c1 * _u[1] + c2 * _u[2])
-        dv_dx = (1 / det_v) * (b0 * _v[0] + b1 * _v[1] + b2 * _v[2])
-        dv_dy = (1 / det_v) * (c0 * _v[0] + c1 * _v[1] + c2 * _v[2])
+        # These are for the "initial displacement" terms, since they don't change for changes in the incremental u
+        du_dx_t = b0 * _u_t[0] + b1 * _u_t[1] + b2 * _u_t[2]
+        du_dy_t = c0 * _u_t[0] + c1 * _u_t[1] + c2 * _u_t[2]
+        dv_dx_t = b0 * _v_t[0] + b1 * _v_t[1] + b2 * _v_t[2]
+        dv_dy_t = c0 * _v_t[0] + c1 * _v_t[1] + c2 * _v_t[2]
+
+        du_dx = b0 * _u[0] + b1 * _u[1] + b2 * _u[2]
+        du_dy = c0 * _u[0] + c1 * _u[1] + c2 * _u[2]
+        dv_dx = b0 * _v[0] + b1 * _v[1] + b2 * _v[2]
+        dv_dy = c0 * _v[0] + c1 * _v[1] + c2 * _v[2]
+
+        # Initial Displacement terms
+        init11 = du_dx_t * du_dx + dv_dx_t * dv_dx
+        init22 = du_dy_t * du_dy + dv_dy_t * dv_dy
+        init12 = 0.5 * (du_dx_t * du_dy + dv_dx_t * du_dx + dv_dy_t * dv_dx)
+
+        # Linear terms
+        e11 = du_dx + init11
+        e22 = dv_dy + init22
+        e12 = 0.5 * (du_dy + dv_dx) + init12
+
+        # Nonlinear terms
+        n11 = 0.5 * (du_dx ** 2 + dv_dx ** 2)
+        n22 = 0.5 * (du_dy ** 2 + dv_dy ** 2)
+        n12 = 0.5 * (du_dx * du_dy + dv_dx * dv_dy)
 
         return np.array([
-            du_dx + 0.5 * (du_dx ** 2 + dv_dx ** 2),
-            dv_dy + 0.5 * (du_dx ** 2 + dv_dx ** 2),
-            2 * (0.5 * (du_dy + dv_dx) + 0.5 * (du_dx * du_dy + dv_dx * dv_dy))
+            e11 + n11,
+            e22 + n22,
+            e12 + n12
         ])
 
     def nonlinear_b(self, triangle, u):
         _u = u[triangle][::2]
         _v = u[triangle][1::2]
-        _x = coords[triangle][::2] + _u
-        _y = coords[triangle][1::2] + _v
+        _x = coords[triangle][::2]
+        _y = coords[triangle][1::2]
 
         v = np.array([
             [1, _x[0], _y[0]],
@@ -309,8 +319,8 @@ class TotalLagrangianMethod(object):
     def linear_b(self, triangle, u):
         _u = u[triangle][::2]
         _v = u[triangle][1::2]
-        _x = coords[triangle][::2] + _u
-        _y = coords[triangle][1::2] + _v
+        _x = coords[triangle][::2]
+        _y = coords[triangle][1::2]
 
         v = np.array([
             [1, _x[0], _y[0]],
@@ -320,11 +330,28 @@ class TotalLagrangianMethod(object):
         inv_v = np.linalg.inv(v)
         a0, a1, a2, b0, b1, b2, c0, c1, c2 = inv_v.flatten()
 
-        return np.array([
+        B0 = np.array([
             [b0,  0, b1,  0, b2,  0],
             [ 0, c0,  0, c1,  0, c2],
             [c0, b0, c1, b1, c2, b2]
         ])
+
+        _u_t = self.u[triangle][::2]
+        _v_t = self.u[triangle][1::2]
+
+        l11 = b0 * _u_t[0] + b1 * _u_t[1] + b2 * _u_t[2]
+        l22 = c0 * _v_t[0] + c1 * _v_t[1] + c2 * _v_t[2]
+        l21 = b0 * _v_t[0] + b1 * _v_t[1] + b2 * _v_t[2]
+        l12 = c0 * _u_t[0] + c1 * _u_t[1] + c2 * _u_t[2]
+
+        B1 = np.array([
+            [           l11 * b0,            l21 * b0,            l11 * b1,            l21 * b1,            l11 * b2,            l21 * b2],
+            [           l12 * c0,            l22 * c0,            l12 * c1,            l22 * c1,            l12 * c2,            l22 * c2],
+            [l11 * c0 + l12 * b0, l21 * c0 + l22 * b0, l11 * c0 + l12 * b0, l21 * c0 + l22 * b0, l11 * c2 + l12 * b2, l21 * c2 + l22 * b2],
+        ])
+
+        return B0 + B1
+
 
     def linear_k(self, u):
         def impl(triangle):
@@ -654,8 +681,9 @@ def draw(i, u):
         plt.savefig(f"/tmp/{i}.png")
 
 if __name__ == "__main__":
-    ul = UpdatedLagrangianMethod()
-    draw("00_init", ul.u)
+    #interface = TotalLagrangianMethod()
+    interface = UpdatedLagrangianMethod()
+    draw("00_init", interface.u)
 
     max_i = 5000
     if len(sys.argv) == 2:
@@ -664,13 +692,13 @@ if __name__ == "__main__":
     initial_energy = None
     for i in range(max_i):
         print (f"Generating frame {i}")
-        update_bathe(ul)
+        update_bathe(interface)
 
         if initial_energy is None:
-            initial_energy = compute_energy(ul)
-        print (f"Total Energy: initial: {initial_energy}, at {i}: {compute_energy(ul)}", )
+            initial_energy = compute_energy(interface)
+        print (f"Total Energy: initial: {initial_energy}, at {i}: {compute_energy(interface)}", )
 
         if i % int(1 / 30 * fps) == 0:
-            draw(i, ul.u)
+            draw(i, interface.u)
 
         i += 1
