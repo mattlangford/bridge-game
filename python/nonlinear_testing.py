@@ -263,7 +263,7 @@ class TotalLagrangianMethod(object):
         # Initial Displacement terms
         init11 = du_dx_t * du_dx + dv_dx_t * dv_dx
         init22 = du_dy_t * du_dy + dv_dy_t * dv_dy
-        init12 = 0.5 * (du_dx_t * du_dy + dv_dx_t * du_dx + dv_dy_t * dv_dx)
+        init12 = 0.5 * (du_dx_t * du_dy + dv_dx_t * dv_dy + du_dy_t * du_dx + dv_dy_t * dv_dx)
 
         # Linear terms
         e11 = du_dx + init11
@@ -278,7 +278,7 @@ class TotalLagrangianMethod(object):
         return np.array([
             e11 + n11,
             e22 + n22,
-            e12 + n12
+            2 * (e12 + n12)
         ])
 
     def nonlinear_b(self, triangle, u):
@@ -347,7 +347,7 @@ class TotalLagrangianMethod(object):
         B1 = np.array([
             [           l11 * b0,            l21 * b0,            l11 * b1,            l21 * b1,            l11 * b2,            l21 * b2],
             [           l12 * c0,            l22 * c0,            l12 * c1,            l22 * c1,            l12 * c2,            l22 * c2],
-            [l11 * c0 + l12 * b0, l21 * c0 + l22 * b0, l11 * c0 + l12 * b0, l21 * c0 + l22 * b0, l11 * c2 + l12 * b2, l21 * c2 + l22 * b2],
+            [l11 * c0 + l12 * b0, l21 * c0 + l22 * b0, l11 * c1 + l12 * b1, l21 * c1 + l22 * b1, l11 * c2 + l12 * b2, l21 * c2 + l22 * b2],
         ])
 
         return B0 + B1
@@ -681,8 +681,8 @@ def draw(i, u):
         plt.savefig(f"/tmp/{i}.png")
 
 if __name__ == "__main__":
-    #interface = TotalLagrangianMethod()
-    interface = UpdatedLagrangianMethod()
+    interface = TotalLagrangianMethod()
+    #interface = UpdatedLagrangianMethod()
     draw("00_init", interface.u)
 
     max_i = 5000
