@@ -389,7 +389,7 @@ class UpdatedLagrangianMethod(object):
         self.v = np.zeros_like(coords)
         self.a = np.zeros_like(coords)
 
-    def nonlinear_strains(self, triangle, u):
+    def _get_b_coeff(self, triangle, u):
         _u = u[triangle][::2]
         _v = u[triangle][1::2]
         _x = coords[triangle][::2] + _u
@@ -400,35 +400,40 @@ class UpdatedLagrangianMethod(object):
             [1, _x[1], _y[1]],
             [1, _x[2], _y[2]],
         ])
-        det_v = np.linalg.det(v)
-        inv_v = np.linalg.inv(v)
-        a0, a1, a2, b0, b1, b2, c0, c1, c2 = inv_v.flatten()
+        a0, a1, a2, b0, b1, b2, c0, c1, c2 = np.linalg.inv(v).flatten()
 
-        du_dx = b0 * _u[0] + b1 * _u[1] + b2 * _u[2]
-        du_dy = c0 * _u[0] + c1 * _u[1] + c2 * _u[2]
-        dv_dx = b0 * _v[0] + b1 * _v[1] + b2 * _v[2]
-        dv_dy = c0 * _v[0] + c1 * _v[1] + c2 * _v[2]
+        return np.array([b0, b1, b2, c0, c1, c2])
+
+    def total_strain(self, triangle):
+        return self.incremental_strains(triangle, self.u)
+
+    def incremental_strains(self, triangle, incremental_u):
+        b0, b1, b2, c0, c1, c2 = self._get_b_coeff(triangle, incremental_u)
+
+        u = incremental_u[triangle][::2]
+        v = incremental_u[triangle][1::2]
+
+        du_dx = b0 * u[0] + b1 * u[1] + b2 * u[2]
+        du_dy = c0 * u[0] + c1 * u[1] + c2 * u[2]
+        dv_dx = b0 * v[0] + b1 * v[1] + b2 * v[2]
+        dv_dy = c0 * v[0] + c1 * v[1] + c2 * v[2]
 
         return np.array([
             du_dx + 0.5 * (du_dx ** 2 + dv_dx ** 2),
-            dv_dy + 0.5 * (du_dx ** 2 + dv_dx ** 2),
+            dv_dy + 0.5 * (du_dy ** 2 + dv_dy ** 2),
             2 * (0.5 * (du_dy + dv_dx) + 0.5 * (du_dx * du_dy + dv_dx * dv_dy))
         ])
 
-    def nonlinear_b(self, triangle, u):
-        _u = u[triangle][::2]
-        _v = u[triangle][1::2]
-        _x = coords[triangle][::2] + _u
-        _y = coords[triangle][1::2] + _v
-
-        v = np.array([
-            [1, _x[0], _y[0]],
-            [1, _x[1], _y[1]],
-            [1, _x[2], _y[2]],
+    def linear_b(self, triangle, u):
+        b0, b1, b2, c0, c1, c2 = self._get_b_coeff(triangle, u)
+        return np.array([
+            [b0,  0, b1,  0, b2,  0],
+            [ 0, c0,  0, c1,  0, c2],
+            [c0, b0, c1, b1, c2, b2]
         ])
-        inv_v = np.linalg.inv(v)
-        a0, a1, a2, b0, b1, b2, c0, c1, c2 = inv_v.flatten()
 
+    def nonlinear_b(self, triangle, u):
+        b0, b1, b2, c0, c1, c2 = self._get_b_coeff(triangle, u)
         return np.array([
             [b0,  0, b1,  0, b2,  0],
             [c0,  0, c1,  0, c2,  0],
@@ -438,7 +443,7 @@ class UpdatedLagrangianMethod(object):
 
     def nonlinear_k(self, u):
         def impl(triangle):
-            strains = self.nonlinear_strains(triangle, u)
+            strains = self.incremental_strains(triangle, u)
             t11, t22, t12 = D.dot(strains)
             stress_matrix = np.array([
                 [t11, t12,  0,   0],
@@ -449,26 +454,6 @@ class UpdatedLagrangianMethod(object):
             b = self.nonlinear_b(triangle, u)
             return thickness * area(triangle, u) * b.T.dot(stress_matrix).dot(b)
         return gen_global_k(impl)
-
-    def linear_b(self, triangle, u):
-        _u = u[triangle][::2]
-        _v = u[triangle][1::2]
-        _x = coords[triangle][::2] + _u
-        _y = coords[triangle][1::2] + _v
-
-        v = np.array([
-            [1, _x[0], _y[0]],
-            [1, _x[1], _y[1]],
-            [1, _x[2], _y[2]],
-        ])
-        inv_v = np.linalg.inv(v)
-        a0, a1, a2, b0, b1, b2, c0, c1, c2 = inv_v.flatten()
-
-        return np.array([
-            [b0,  0, b1,  0, b2,  0],
-            [ 0, c0,  0, c1,  0, c2],
-            [c0, b0, c1, b1, c2, b2]
-        ])
 
     def linear_k(self, u):
         def impl(triangle):
@@ -481,7 +466,7 @@ class UpdatedLagrangianMethod(object):
 
         forces = np.zeros_like(u)
         for triangle in triangles:
-            strains = self.nonlinear_strains(triangle, u)
+            strains = self.incremental_strains(triangle, u)
             stress = D.dot(strains)
             b = self.linear_b(triangle, u)
             force = thickness * area(triangle, u) * b.T.dot(stress)
@@ -529,7 +514,7 @@ def update_newmark(interface):
 
     next_u = np.zeros_like(u)
 
-    for i in range(10):
+    for i in range(20):
         next_u, error = iteration(next_u)
         print (f"Iteration {i} error: {error}")
         if (error < 1E-2):
@@ -639,13 +624,13 @@ def draw_triangles(interface):
     for i, triangle in enumerate(triangles):
         x0, y0, x1, y1, x2, y2 = points[triangle]
 
-        stresses = D.dot(interface.nonlinear_strains(triangle, interface.u))
+        stresses = D.dot(interface.total_strain(triangle))
         stress = np.linalg.norm(stresses)
 
         def color(c):
             return max(min(c, 1.0), 0.0)
 
-        max_stress = 50000
+        max_stress = 40000
         red = color(stress / max_stress)
         green = color((max_stress - stress) / max_stress)
 
@@ -679,7 +664,7 @@ def draw(i, interface):
         plt.savefig(f"/tmp/{i}.png")
 
 if __name__ == "__main__":
-    #interface = TotalLagrangianMethod()
+    # interface = TotalLagrangianMethod()
     interface = UpdatedLagrangianMethod()
     draw("00_init", interface)
 
