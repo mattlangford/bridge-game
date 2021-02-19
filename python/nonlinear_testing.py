@@ -18,7 +18,7 @@ D = np.array([
 ])
 D *= E / (1.0 - v * v)
 
-fps = 30.
+fps = 60.
 dt = 1 / fps
 dt2 = dt * dt
 
@@ -495,47 +495,48 @@ class UpdatedLagrangianMethod(object):
 
 
 def update_newmark(interface):
-    def iteration(next_u):
-        u = interface.u
-        v = interface.v
-        a = interface.a
+    M = generate_nonfixed_matrix(compute_M())
+    C = generate_nonfixed_matrix(compute_C())
 
-        gravity = np.zeros_like(u)
-        gravity[1::2] = -9.8 * np.diag(M)[1::2]
-
-        rhs = gravity - interface.stress_forces(next_u)
-        rhs -= M.dot((4 / dt2) * (next_u - u) - (4 / dt) * v - a)
-        rhs -= C.dot((2 / dt) * (next_u - u) - v)
-
-        # print ("  Linear    :", self.linear_strains(triangles[-1], next_u))
-        # print ("  Non linear: ", self.nonlinear_strains(triangles[-1], next_u))
-        # print (f"  Gravity: {generate_nonfixed_vector(gravity)}")
-        # print (f"  Stress : {generate_nonfixed_vector(rhs - gravity)}")
-
-        K = generate_nonfixed_matrix(interface.linear_k(next_u) + interface.nonlinear_k(next_u) + (4 / dt2) * M + (2 / dt) * C)
-        du = np.linalg.inv(K).dot(generate_nonfixed_vector(rhs))
-        next_u += generate_full_vector(du, np.zeros_like(u))
-
-        # print (f" Residual: {np.linalg.norm(generate_nonfixed_vector(rhs))}")
-
-        return next_u
-
-    next_u = np.zeros_like(interface.u)
-
-    previous_u = np.zeros_like(next_u)
-    for i in range(10):
-        next_u = iteration(next_u)
-        if (np.linalg.norm(next_u - previous_u) < 1E-8):
-            print (f"Converged after {i + 1} iterations")
-            break
-        previous_u = next_u
-    else:
-        print ("Failed to converge.")
-
-    next_u = generate_nonfixed_vector(next_u)
     u = generate_nonfixed_vector(interface.u)
     v = generate_nonfixed_vector(interface.v)
     a = generate_nonfixed_vector(interface.a)
+
+    def iteration(next_u):
+        gravity = np.zeros_like(u)
+        gravity[1::2] = -9.8 * np.diag(M)[1::2]
+
+        next_full_u = generate_full_vector(next_u, np.zeros(len(coords)))
+
+        external_forces = gravity
+        internal_forces = generate_nonfixed_vector(interface.stress_forces(next_full_u))
+
+        rhs = external_forces - internal_forces
+        rhs -= M.dot((4 / dt2) * (next_u - u) - (4 / dt) * v - a)
+        rhs -= C.dot((2 / dt) * (next_u - u) - v)
+
+        K = generate_nonfixed_matrix(interface.linear_k(next_full_u) + interface.nonlinear_k(next_full_u)) + (4 / dt2) * M + (2 / dt) * C
+        du = np.linalg.inv(K).dot(rhs)
+
+        initial_next_u = np.copy(next_u)
+        next_u += du
+
+        next_a = (4 / dt2) * (next_u - u) - (4 / dt) * v - a
+        internal_forces = generate_nonfixed_vector(interface.stress_forces(generate_full_vector(next_u, np.zeros(len(coords)))))
+        error = np.linalg.norm(external_forces - internal_forces - M.dot(next_a))
+
+        return next_u, error
+
+    next_u = np.zeros_like(u)
+
+    for i in range(10):
+        next_u, error = iteration(next_u)
+        print (f"Iteration {i} error: {error}")
+        if (error < 1E-2):
+            print (f"Converged after {i + 1} iteration(s)")
+            break
+    else:
+        raise Exception("Failed to converge.")
 
     next_a = (4 / dt2) * (next_u - u) - (4 / dt) * v - a
     next_v = v + dt / 2 * (a + next_a)
@@ -632,16 +633,13 @@ def update_bathe(interface):
     interface.a = generate_full_vector(next_a, np.zeros_like(interface.a))
 
 
-def draw_triangles(u):
-    points = coords + u
-
-    ul = UpdatedLagrangianMethod()
-    ul.u = u
+def draw_triangles(interface):
+    points = coords + interface.u
 
     for i, triangle in enumerate(triangles):
         x0, y0, x1, y1, x2, y2 = points[triangle]
 
-        stresses = D.dot(ul.nonlinear_strains(triangle, u))
+        stresses = D.dot(interface.nonlinear_strains(triangle, interface.u))
         stress = np.linalg.norm(stresses)
 
         def color(c):
@@ -666,14 +664,14 @@ def compute_energy(interface):
     gravitational_potential_energy = 9.8 * np.sum(M.dot(u)[1::2])
     return kinetic_energy + strain_potential_energy + gravitational_potential_energy
 
-def draw(i, u):
+def draw(i, interface):
     plt.clf()
     plt.gca().set_aspect('equal', adjustable='box')
 
     print (f"Saving frame {i}")
     plt.xlim(min(coords) - 2, max(coords) + 2)
     plt.ylim(min(coords) - 2, max(coords) + 2)
-    draw_triangles(u)
+    draw_triangles(interface)
 
     if isinstance(i, int):
         plt.savefig(f"/tmp/{i:07}.png")
@@ -681,9 +679,9 @@ def draw(i, u):
         plt.savefig(f"/tmp/{i}.png")
 
 if __name__ == "__main__":
-    interface = TotalLagrangianMethod()
-    #interface = UpdatedLagrangianMethod()
-    draw("00_init", interface.u)
+    #interface = TotalLagrangianMethod()
+    interface = UpdatedLagrangianMethod()
+    draw("00_init", interface)
 
     max_i = 5000
     if len(sys.argv) == 2:
@@ -692,13 +690,13 @@ if __name__ == "__main__":
     initial_energy = None
     for i in range(max_i):
         print (f"Generating frame {i}")
-        update_bathe(interface)
+        update_newmark(interface)
 
         if initial_energy is None:
             initial_energy = compute_energy(interface)
-        print (f"Total Energy: initial: {initial_energy}, at {i}: {compute_energy(interface)}", )
+        print (f"Total Energy: initial: {initial_energy}, at {i}: {compute_energy(interface)} t={i / fps:.2f}s")
 
         if i % int(1 / 30 * fps) == 0:
-            draw(i, interface.u)
+            draw(i, interface)
 
         i += 1
