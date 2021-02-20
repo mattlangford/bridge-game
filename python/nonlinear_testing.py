@@ -306,6 +306,8 @@ class TotalLagrangianMethod(object):
     def nonlinear_k(self, u):
         def impl(triangle):
             strains = self.incremental_strains(triangle, u)
+            stress = D.dot(strains)
+
             t11, t22, t12 = D.dot(strains)
             stress_matrix = np.array([
                 [t11, t12,  0,   0],
@@ -392,7 +394,7 @@ class TotalLagrangianMethod(object):
             strains = np.array([strains[0, 0], strains[1, 1], strains[0, 1]])
             stress = D.dot(strains)
             b = self.linear_b(triangle)
-            force = thickness * area(triangle, self.u + u) * b.T.dot(stress)
+            force = thickness * area0(triangle) * b.T.dot(stress)
 
             for from_i, to_i in enumerate(triangle):
                 if fixed[to_i]:
@@ -532,7 +534,7 @@ def update_newmark(interface):
     for i in range(20):
         du, error = iteration(du)
         print (f"Iteration {i} error: {error}")
-        if (error < 1E-2):
+        if (error < 10):
             print (f"Converged after {i + 1} iteration(s)")
             break
     else:
@@ -656,13 +658,20 @@ def draw_triangles(interface):
     plt.scatter(points[::2], points[1::2], color=["red" if i == 1 else "blue" for i in fixed[::2]])
 
 def compute_energy(interface):
-    u = interface.u
-    v = interface.v
+    M = generate_nonfixed_matrix(compute_M())
 
-    K = interface.linear_k(u) + interface.nonlinear_k(u)
+    u = generate_nonfixed_vector(interface.u)
+    v = generate_nonfixed_vector(interface.v)
+    a = generate_nonfixed_vector(interface.a)
+
+    strain_potential_energy = 0
+    for triangle in triangles:
+        X = interface.deformation_gradient(triangle, np.zeros_like(interface.u))
+        strains = 0.5 * (X.T.dot(X) - np.eye(2))
+        strains = np.array([strains[0, 0], strains[1, 1], strains[0, 1]])
+        strain_potential_energy += 0.5 * thickness * area(triangle, interface.u) * strains.T.dot(D).dot(strains)
 
     kinetic_energy = 0.5 * v.transpose().dot(M).dot(v)
-    strain_potential_energy = 0.5 * u.transpose().dot(K).dot(u)
     gravitational_potential_energy = 9.8 * np.sum(M.dot(u)[1::2])
     return kinetic_energy + strain_potential_energy + gravitational_potential_energy
 
@@ -684,6 +693,7 @@ def draw(i, interface):
 
 if __name__ == "__main__":
     interface = TotalLagrangianMethod()
+
     # interface = UpdatedLagrangianMethod()
     draw("00_init", interface)
 
