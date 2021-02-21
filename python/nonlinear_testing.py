@@ -5,10 +5,10 @@ import scipy.optimize
 
 np.set_printoptions(suppress=True, edgeitems=10, linewidth=100000)
 
-E = 3.7 * 1E5
+E = 3.7 * 1E6
 v = 0.1
 m = 50 * 3.1
-c = 30.0
+c = 0.0
 
 # Relates stress to strain
 D = np.array([
@@ -18,7 +18,7 @@ D = np.array([
 ])
 D *= E / (1.0 - v * v)
 
-fps = 60.
+fps = 30.
 dt = 1 / fps
 dt2 = dt * dt
 
@@ -771,8 +771,8 @@ def draw(i, interface):
 
 
 if __name__ == "__main__":
-    #interface = TotalLagrangianMethod()
-    interface = UpdatedLagrangianMethod()
+    interface = TotalLagrangianMethod()
+    #interface = UpdatedLagrangianMethod()
 
     draw("00_init", interface)
 
