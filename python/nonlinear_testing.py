@@ -433,7 +433,7 @@ class UpdatedLagrangianMethod(object):
         return np.array([
             du_dx + 0.5 * (du_dx ** 2 + dv_dx ** 2),
             dv_dy + 0.5 * (du_dy ** 2 + dv_dy ** 2),
-            0.5 * (du_dy + dv_dx) + 0.5 * (du_dx * du_dy + dv_dx * dv_dy)
+            2 * (0.5 * (du_dy + dv_dx) + 0.5 * (du_dx * du_dy + dv_dx * dv_dy))
         ])
 
     def linear_b(self, triangle):
@@ -504,7 +504,10 @@ class UpdatedLagrangianMethod(object):
         for triangle in triangles:
             X = self.deformation_gradient(triangle, u)
             strains = 0.5 * (X.T.dot(X) - np.eye(2))
+
+            strains = X.dot(strains).dot(X.T)
             strains = np.array([strains[0, 0], strains[1, 1], strains[0, 1]])
+
             stress = D.dot(strains)
             b = self.linear_b(triangle)
             force = thickness * area(triangle, self.u) * b.T.dot(stress)
@@ -713,7 +716,6 @@ def draw(i, interface):
 
 if __name__ == "__main__":
     # interface = TotalLagrangianMethod()
-
     interface = UpdatedLagrangianMethod()
 
     draw("00_init", interface)
