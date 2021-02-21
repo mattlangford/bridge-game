@@ -528,6 +528,8 @@ def update_newmark(interface):
     v = generate_nonfixed_vector(interface.v)
     a = generate_nonfixed_vector(interface.a)
 
+    K = generate_nonfixed_matrix(interface.linear_k(interface.u) + interface.nonlinear_k(interface.u)) + (4 / dt2) * M + (2 / dt) * C
+
     def iteration(du):
         gravity = np.zeros_like(u)
         gravity[1::2] = -9.8 * np.diag(M)[1::2]
@@ -541,8 +543,7 @@ def update_newmark(interface):
         rhs -= M.dot((4 / dt2) * du - (4 / dt) * v - a)
         rhs -= C.dot((2 / dt) * du - v)
 
-        K = generate_nonfixed_matrix(interface.linear_k(full_du) + interface.nonlinear_k(full_du)) + (4 / dt2) * M + (2 / dt) * C
-        du += np.linalg.inv(K).dot(rhs)
+        du += np.linalg.solve(K, rhs)
 
         next_a = (4 / dt2) * du - (4 / dt) * v - a
         internal_forces = generate_nonfixed_vector(interface.stress_forces(generate_full_vector(du, np.zeros(len(coords)))))
@@ -742,7 +743,7 @@ if __name__ == "__main__":
     initial_energy = None
     for i in range(max_i):
         print (f"Generating frame {i}")
-        update_bathe(interface)
+        update_newmark(interface)
 
         if initial_energy is None:
             initial_energy = compute_energy(interface)
