@@ -18,7 +18,7 @@ D = np.array([
 ])
 D *= E / (1.0 - v * v)
 
-fps = 60.
+fps = 30.
 dt = 1 / fps
 dt2 = dt * dt
 
@@ -617,7 +617,7 @@ def update_bathe(interface):
         du_full = generate_full_vector(du, np.zeros(len(coords)))
 
         half_u = u + half_du
-        next_u = u + half_du + du
+        next_u = u + du
 
         rhs = gravity - generate_nonfixed_vector(interface.stress_forces(du_full))
         rhs -= M.dot(c3 * c3 * next_u + c3 * c2 * half_u + c3 * c1 * u + c2 * half_v + c1 * v)
@@ -628,7 +628,7 @@ def update_bathe(interface):
 
         internal_forces = generate_nonfixed_vector(interface.stress_forces(generate_full_vector(du, np.zeros(len(coords)))))
 
-        next_u = u + half_du + du
+        next_u = u + du
         next_v = c1 * u + c2 * half_u + c3 * next_u
         next_a = c1 * v + c2 * half_v + c3 * next_v
         error = np.linalg.norm(gravity - internal_forces - M.dot(next_a))
@@ -640,6 +640,7 @@ def update_bathe(interface):
     # First iteration
     for i in range(20):
         half_du, error = iteration_first(half_du)
+
         print (f"Iteration {i} error: {error}")
         if (error < 10):
             print (f"Converged after {i + 1} iteration(s)")
@@ -649,7 +650,7 @@ def update_bathe(interface):
 
     half_u = u + half_du
     half_v = a1 * half_du - v
-    du = np.zeros_like(u)
+    du = np.zeros_like(half_du)
 
     # Second iteration
     for i in range(20):
@@ -662,7 +663,7 @@ def update_bathe(interface):
         raise Exception("Failed to converge.")
 
 
-    next_u = u + half_du + du
+    next_u = u + du
     next_v = c1 * u + c2 * half_u + c3 * next_u
     next_a = c1 * v + c2 * half_v + c3 * next_v
 
@@ -729,8 +730,8 @@ def draw(i, interface):
 
 
 if __name__ == "__main__":
-    # interface = TotalLagrangianMethod()
-    interface = UpdatedLagrangianMethod()
+    interface = TotalLagrangianMethod()
+    #interface = UpdatedLagrangianMethod()
 
     draw("00_init", interface)
 
