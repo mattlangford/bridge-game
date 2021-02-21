@@ -586,69 +586,83 @@ def update_bathe(interface):
     a6 = -3.0 / dt2
     a7 = -1.0 / dt
 
-    def iteration_first(half_u):
+    def iteration_first(half_du):
         gravity = np.zeros_like(u)
         gravity[1::2] = -9.8 * np.diag(M)[1::2]
 
-        half_u_full = generate_full_vector(half_u, np.zeros(len(coords)))
+        half_du_full = generate_full_vector(half_du, np.zeros(len(coords)))
 
-        rhs = gravity - generate_nonfixed_vector(interface.stress_forces(half_u_full))
-        rhs -= M.dot(a0 * (half_u - u) - a4 * v - a)
-        rhs -= C.dot(a1 * (half_u - u) - v)
+        rhs = gravity - generate_nonfixed_vector(interface.stress_forces(half_du_full))
+        rhs -= M.dot(a0 * half_du - a4 * v - a)
+        rhs -= C.dot(a1 * half_du - v)
 
-        K = generate_nonfixed_matrix(interface.linear_k(half_u_full) + interface.nonlinear_k(half_u_full)) + a0 * M + a1 * C
-        du = np.linalg.inv(K).dot(rhs)
-        half_u += du
+        K = generate_nonfixed_matrix(interface.linear_k(half_du_full) + interface.nonlinear_k(half_du_full)) + a0 * M + a1 * C
+        half_du += np.linalg.inv(K).dot(rhs)
 
-        return half_u
+        internal_forces = generate_nonfixed_vector(interface.stress_forces(generate_full_vector(half_du, np.zeros(len(coords)))))
+        half_v = a1 * half_du - v
+        half_a = a0 * half_du - a4 * v - a
+        error = np.linalg.norm(gravity - internal_forces - M.dot(half_a))
+
+        return half_du, error
 
     c1 = 0.5 / (0.5 * dt)
     c2 = -1 / ((1 - 0.5) * 0.5 * dt)
     c3 = (2 - 0.5) / ((1 - 0.5) * dt)
-    def iteration_second(next_u, half_u, half_v):
+
+    def iteration_second(du, half_du, half_v):
         gravity = np.zeros_like(u)
         gravity[1::2] = -9.8 * np.diag(M)[1::2]
 
-        next_u_full = generate_full_vector(next_u, np.zeros(len(coords)))
+        du_full = generate_full_vector(du, np.zeros(len(coords)))
 
-        rhs = gravity - generate_nonfixed_vector(interface.stress_forces(next_u_full))
+        half_u = u + half_du
+        next_u = u + half_du + du
+
+        rhs = gravity - generate_nonfixed_vector(interface.stress_forces(du_full))
         rhs -= M.dot(c3 * c3 * next_u + c3 * c2 * half_u + c3 * c1 * u + c2 * half_v + c1 * v)
         rhs -= C.dot(c1 * u + c2 * half_u + c3 * next_u)
 
-        K = generate_nonfixed_matrix(interface.linear_k(next_u_full) + interface.nonlinear_k(next_u_full)) + c3 * c3 * M + c3 * C
-        du = np.linalg.inv(K).dot(rhs)
-        next_u += du
+        K = generate_nonfixed_matrix(interface.linear_k(du_full) + interface.nonlinear_k(du_full)) + c3 * c3 * M + c3 * C
+        du += np.linalg.inv(K).dot(rhs)
 
-        return next_u
+        internal_forces = generate_nonfixed_vector(interface.stress_forces(generate_full_vector(du, np.zeros(len(coords)))))
 
-    half_u = np.zeros_like(u)
-    next_u = np.zeros_like(u)
+        next_u = u + half_du + du
+        next_v = c1 * u + c2 * half_u + c3 * next_u
+        next_a = c1 * v + c2 * half_v + c3 * next_v
+        error = np.linalg.norm(gravity - internal_forces - M.dot(next_a))
 
-    previous_u = np.zeros_like(half_u)
+        return du, error
+
+    half_du = np.zeros_like(u)
 
     # First iteration
-    for i in range(10):
-        half_u = iteration_first(half_u)
-        if (np.linalg.norm(half_u - previous_u) < 1E-8):
+    for i in range(20):
+        half_du, error = iteration_first(half_du)
+        print (f"Iteration {i} error: {error}")
+        if (error < 10):
             print (f"Converged after {i + 1} iteration(s)")
             break
-        previous_u = half_u
     else:
-        print ("Failed to converge.")
+        raise Exception("Failed to converge.")
 
-    half_v = a1 * (half_u - u) - v
+    half_u = u + half_du
+    half_v = a1 * half_du - v
+    du = np.zeros_like(u)
 
     # Second iteration
-    previous_u = np.zeros_like(previous_u)
-    for i in range(10):
-        next_u = iteration_second(next_u, half_u, half_v)
-        if (np.linalg.norm(next_u - previous_u) < 1E-8):
+    for i in range(20):
+        du, error = iteration_second(du, half_du, half_v)
+        print (f"Iteration {i} error: {error}")
+        if (error < 10):
             print (f"Converged after {i + 1} iteration(s)")
             break
-        previous_u = next_u
     else:
-        print ("Failed to converge.")
+        raise Exception("Failed to converge.")
 
+
+    next_u = u + half_du + du
     next_v = c1 * u + c2 * half_u + c3 * next_u
     next_a = c1 * v + c2 * half_v + c3 * next_v
 
@@ -727,7 +741,7 @@ if __name__ == "__main__":
     initial_energy = None
     for i in range(max_i):
         print (f"Generating frame {i}")
-        update_newmark(interface)
+        update_bathe(interface)
 
         if initial_energy is None:
             initial_energy = compute_energy(interface)
