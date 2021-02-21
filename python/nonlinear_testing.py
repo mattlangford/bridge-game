@@ -8,7 +8,7 @@ np.set_printoptions(suppress=True, edgeitems=10, linewidth=100000)
 E = 3.7 * 1E5
 v = 0.1
 m = 50 * 3.1
-c = 0.0
+c = 30.0
 
 # Relates stress to strain
 D = np.array([
@@ -18,112 +18,147 @@ D = np.array([
 ])
 D *= E / (1.0 - v * v)
 
-fps = 30.
+fps = 60.
 dt = 1 / fps
 dt2 = dt * dt
 
 thickness = 1
 
-coords = np.array([
-    0, 0,
-    0, 1,
-    1, 0,
-    1, 1,
-    1, 2,
-    1, 3,
-    2, 3,
-    2, 2,
-    2, 1,
-    2, 0,
-    3, 0,
-    3, 1,
-    3, 2,
-    3, 3,
-    4, 3,
-    4, 2,
-    4, 1,
-    4, 0,
-], dtype=np.float64)
+def get_bar():
+    coords = np.array([
+        0, 0,
+        0, 1,
+        1, 0,
+        1, 1,
+        2, 0,
+        2, 1,
+        3, 0,
+        3, 1,
+        4, 0,
+        4, 1,
+        5, 0,
+        5, 1,
+        6, 0,
+        6, 1,
+    ], dtype=np.float64)
 
-fixed = np.array([
-    1, 1,
-    1, 1,
-    0, 0,
-    0, 0,
-    0, 0,
-    0, 0,
-    0, 0,
-    0, 0,
-    0, 0,
-    0, 0,
-    0, 0,
-    0, 0,
-    0, 0,
-    0, 0,
-    0, 0,
-    0, 0,
-    0, 0,
-    0, 0,
-])
-assert len(fixed) == len(coords), f"{len(fixed)} != {len(coords)}"
+    fixed = np.array([
+        1, 1,
+        1, 1,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+    ])
+    assert len(fixed) == len(coords), f"{len(fixed)} != {len(coords)}"
 
-def get_triangle(p0, p1, p2):
-    p0 = p0 - 1
-    p1 = p1 - 1
-    p2 = p2 - 1
-    return [
-        2 * p0, 2 * p0 + 1,
-        2 * p1, 2 * p1 + 1,
-        2 * p2, 2 * p2 + 1
+    def get_triangle(p0, p1, p2):
+        return [
+            2 * p0, 2 * p0 + 1,
+            2 * p1, 2 * p1 + 1,
+            2 * p2, 2 * p2 + 1
+        ]
+
+    def get_triangles(from_i, to_i):
+        l = []
+        for i in range(from_i, to_i):
+            l.append(get_triangle(i, i + 1, i + 2))
+        return l
+
+    triangles = get_triangles(0, 12)
+
+    return coords, fixed, triangles
+
+def get_box():
+    coords = np.array([
+        0, 0,
+        0, 1,
+        1, 0,
+        1, 1,
+        1, 2,
+        1, 3,
+        2, 3,
+        2, 2,
+        2, 1,
+        2, 0,
+        3, 0,
+        3, 1,
+        3, 2,
+        3, 3,
+        4, 3,
+        4, 2,
+        4, 1,
+        4, 0,
+    ], dtype=np.float64)
+
+    fixed = np.array([
+        1, 1,
+        1, 1,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+    ])
+
+    def get_triangle(p0, p1, p2):
+        p0 = p0 - 1
+        p1 = p1 - 1
+        p2 = p2 - 1
+        return [
+            2 * p0, 2 * p0 + 1,
+            2 * p1, 2 * p1 + 1,
+            2 * p2, 2 * p2 + 1
+        ]
+
+    triangles = [
+        get_triangle(1, 4, 3),
+        get_triangle(1, 2, 4),
+        get_triangle(3, 4, 9),
+        get_triangle(4, 5, 8),
+        get_triangle(5, 6, 7),
+        get_triangle(5, 7, 8),
+        get_triangle(4, 8, 9),
+        get_triangle(3, 9, 10),
+        get_triangle(10, 9, 12),
+        get_triangle(9, 8, 13),
+        get_triangle(8, 7, 14),
+        get_triangle(8, 14, 13),
+        get_triangle(9, 13, 12),
+        get_triangle(10, 12, 11),
+        get_triangle(11, 12, 17),
+        get_triangle(12, 13, 16),
+        get_triangle(13, 14, 15),
+        get_triangle(13, 15, 16),
+        get_triangle(12, 16, 17),
+        get_triangle(11, 12, 17),
+        get_triangle(11, 17, 18),
     ]
+    return coords, fixed, triangles
 
-def get_triangles(from_i, to_i):
-    l = []
-    for i in range(from_i, to_i):
-        l.append(get_triangle(i, i + 1, i + 2))
-    return l
+coords, fixed, triangles = get_bar()
 
-triangles = [
-    get_triangle(1, 4, 3),
-    get_triangle(1, 2, 4),
-    get_triangle(3, 4, 9),
-    get_triangle(4, 5, 8),
-    get_triangle(5, 6, 7),
-    get_triangle(5, 7, 8),
-    get_triangle(4, 8, 9),
-    get_triangle(3, 9, 10),
-    get_triangle(10, 9, 12),
-    get_triangle(9, 8, 13),
-    get_triangle(8, 7, 14),
-    get_triangle(8, 14, 13),
-    get_triangle(9, 13, 12),
-    get_triangle(10, 12, 11),
-    get_triangle(11, 12, 17),
-    get_triangle(12, 13, 16),
-    get_triangle(13, 14, 15),
-    get_triangle(13, 15, 16),
-    get_triangle(12, 16, 17),
-    get_triangle(11, 12, 17),
-    get_triangle(11, 17, 18),
-]
 assert len(fixed) == len(coords), f"{len(fixed)} != {len(coords)}"
-
-def get_triangle(p0, p1, p2):
-    return [
-        2 * p0, 2 * p0 + 1,
-        2 * p1, 2 * p1 + 1,
-        2 * p2, 2 * p2 + 1
-    ]
-
-def get_triangles(from_i, to_i):
-    l = []
-    for i in range(from_i, to_i):
-        l.append(get_triangle(i, i + 1, i + 2))
-    return l
-
-# triangles = get_triangles(0, 16)
-# print (triangles)
-assert max([max(triangle) for triangle in triangles]) < len(coords), f"Needs to be {int(len(coords) / 2 - 1)}"
+assert max([max(triangle) for triangle in triangles]) < len(coords), f"Needs to be {int(len(coords) / 2)}"
 
 def compute_M():
     triangle_volume = 1 * 1 * 1 / 2
@@ -547,6 +582,8 @@ def update_newmark(interface):
         next_a = (4 / dt2) * du - (4 / dt) * v - a
         internal_forces = generate_nonfixed_vector(interface.stress_forces(generate_full_vector(du, np.zeros(len(coords)))))
         error = np.linalg.norm(external_forces - internal_forces - M.dot(next_a))
+        # Normalize with m * g
+        error /= np.linalg.norm(9.8 * np.diag(M))
 
         return du, error
 
@@ -555,7 +592,7 @@ def update_newmark(interface):
     for i in range(20):
         du, error = iteration(du)
         print (f"Iteration {i} error: {error}")
-        if (error < 10):
+        if (error < 1):
             print (f"Converged after {i + 1} iteration(s)")
             break
     else:
@@ -603,6 +640,8 @@ def update_bathe(interface):
         half_v = a1 * half_du - v
         half_a = a0 * half_du - a4 * v - a
         error = np.linalg.norm(gravity - internal_forces - M.dot(half_a))
+        # Normalize with m * g
+        error /= np.linalg.norm(9.8 * np.diag(M))
 
         return half_du, error
 
@@ -632,6 +671,8 @@ def update_bathe(interface):
         next_v = c1 * u + c2 * half_u + c3 * next_u
         next_a = c1 * v + c2 * half_v + c3 * next_v
         error = np.linalg.norm(gravity - internal_forces - M.dot(next_a))
+        # Normalize with m * g
+        error /= np.linalg.norm(9.8 * np.diag(M))
 
         return du, error
 
@@ -642,7 +683,7 @@ def update_bathe(interface):
         half_du, error = iteration_first(half_du)
 
         print (f"Iteration {i} error: {error}")
-        if (error < 10):
+        if (error < 1E-2):
             print (f"Converged after {i + 1} iteration(s)")
             break
     else:
@@ -656,7 +697,7 @@ def update_bathe(interface):
     for i in range(20):
         du, error = iteration_second(du, half_du, half_v)
         print (f"Iteration {i} error: {error}")
-        if (error < 10):
+        if (error < 1E-2):
             print (f"Converged after {i + 1} iteration(s)")
             break
     else:
@@ -730,8 +771,8 @@ def draw(i, interface):
 
 
 if __name__ == "__main__":
-    interface = TotalLagrangianMethod()
-    #interface = UpdatedLagrangianMethod()
+    #interface = TotalLagrangianMethod()
+    interface = UpdatedLagrangianMethod()
 
     draw("00_init", interface)
 
@@ -748,7 +789,7 @@ if __name__ == "__main__":
             initial_energy = compute_energy(interface)
         print (f"Total Energy: initial: {initial_energy}, at {i}: {compute_energy(interface)} t={i / fps:.2f}s")
 
-        if i % int(1 / 30 * fps) == 0:
+        if i % int((1 / 30) * fps) == 0:
             draw(i, interface)
 
         i += 1
