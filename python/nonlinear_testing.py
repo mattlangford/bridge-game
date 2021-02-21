@@ -84,12 +84,12 @@ def get_triangles(from_i, to_i):
     return l
 
 triangles = [
-    get_triangle(1, 3, 4),
+    get_triangle(1, 4, 3),
     get_triangle(1, 2, 4),
     get_triangle(3, 4, 9),
     get_triangle(4, 5, 8),
     get_triangle(5, 6, 7),
-    get_triangle(5, 8, 7),
+    get_triangle(5, 7, 8),
     get_triangle(4, 8, 9),
     get_triangle(3, 9, 10),
     get_triangle(10, 9, 12),
@@ -142,19 +142,15 @@ C = compute_C()
 
 
 def area(triangle, u):
-    displacements = coords[triangle] + u[triangle]
+    _x = coords[triangle][::2] + u[triangle][::2]
+    _y = coords[triangle][1::2] + u[triangle][1::2]
 
-    def x(i, j):
-        i -= 1
-        j -= 1
-        return displacements[2 * i] - displacements[2 * j]
-    def y(i, j):
-        i -= 1
-        j -= 1
-        return displacements[2 * i + 1] - displacements[2 * j + 1]
-
-    det_j = x(1, 3) * y(2, 3) - y(1, 3) * x(2, 3)
-    return 0.5 * abs(det_j)
+    v = np.array([
+        [1, _x[0], _y[0]],
+        [1, _x[1], _y[1]],
+        [1, _x[2], _y[2]],
+    ])
+    return 0.5 * abs(np.linalg.det(v))
 
 def area0(triangle):
     return area(triangle, np.zeros_like(coords))
@@ -307,7 +303,6 @@ class TotalLagrangianMethod(object):
         def impl(triangle):
             strains = self.incremental_strains(triangle, u)
             stress = D.dot(strains)
-
             t11, t22, t12 = D.dot(strains)
             stress_matrix = np.array([
                 [t11, t12,  0,   0],
@@ -422,11 +417,7 @@ class UpdatedLagrangianMethod(object):
             [1, _x[2], _y[2]],
         ])
         a0, a1, a2, b0, b1, b2, c0, c1, c2 = np.linalg.inv(v).flatten()
-
         return np.array([b0, b1, b2, c0, c1, c2])
-
-    def total_strain(self, triangle):
-        return self.incremental_strains(triangle, self.u)
 
     def incremental_strains(self, triangle, incremental_u):
         b0, b1, b2, c0, c1, c2 = self._get_b_coeff(triangle)
@@ -482,11 +473,38 @@ class UpdatedLagrangianMethod(object):
             return thickness * area(triangle, self.u) * b.T.dot(D).dot(b)
         return gen_global_k(impl)
 
+    def deformation_gradient(self, triangle, u):
+        x_0 = coords[triangle][::2]
+        y_0 = coords[triangle][1::2]
+        Q = np.array([
+            [1, x_0[0], y_0[0]],
+            [1, x_0[1], y_0[1]],
+            [1, x_0[2], y_0[2]],
+        ])
+        inv_Q = np.linalg.inv(Q)
+
+        # These are with respect to x at t=0
+        _, _, _, dh0_dx0, dh1_dx0, dh2_dx0, dh0_dy0, dh1_dy0, dh2_dy0 = inv_Q.flatten()
+
+        x_t = coords[triangle][::2] + u[triangle][::2] + self.u[triangle][::2]
+        y_t = coords[triangle][1::2] + u[triangle][1::2] + self.u[triangle][1::2]
+
+        dxt_dx0 = dh0_dx0 * x_t[0] + dh1_dx0 * x_t[1] + dh2_dx0 * x_t[2]
+        dxt_dy0 = dh0_dy0 * x_t[0] + dh1_dy0 * x_t[1] + dh2_dy0 * x_t[2]
+        dyt_dx0 = dh0_dx0 * y_t[0] + dh1_dx0 * y_t[1] + dh2_dx0 * y_t[2]
+        dyt_dy0 = dh0_dy0 * y_t[0] + dh1_dy0 * y_t[1] + dh2_dy0 * y_t[2]
+
+        return np.array([
+            [dxt_dx0, dxt_dy0],
+            [dyt_dx0, dyt_dy0],
+        ])
+
     def stress_forces(self, u):
         forces = np.zeros_like(u)
         for triangle in triangles:
-            strains = self.incremental_strains(triangle, u)
-            strains[2] *= 0.5
+            X = self.deformation_gradient(triangle, u)
+            strains = 0.5 * (X.T.dot(X) - np.eye(2))
+            strains = np.array([strains[0, 0], strains[1, 1], strains[0, 1]])
             stress = D.dot(strains)
             b = self.linear_b(triangle)
             force = thickness * area(triangle, self.u) * b.T.dot(stress)
@@ -546,6 +564,7 @@ def update_newmark(interface):
     interface.u += generate_full_vector(du, np.zeros_like(interface.u))
     interface.v = generate_full_vector(next_v, np.zeros_like(interface.v))
     interface.a = generate_full_vector(next_a, np.zeros_like(interface.a))
+
 
 def update_bathe(interface):
     M = generate_nonfixed_matrix(compute_M())
@@ -657,6 +676,7 @@ def draw_triangles(interface):
 
     plt.scatter(points[::2], points[1::2], color=["red" if i == 1 else "blue" for i in fixed[::2]])
 
+
 def compute_energy(interface):
     M = generate_nonfixed_matrix(compute_M())
 
@@ -692,9 +712,10 @@ def draw(i, interface):
 
 
 if __name__ == "__main__":
-    interface = TotalLagrangianMethod()
+    # interface = TotalLagrangianMethod()
 
-    # interface = UpdatedLagrangianMethod()
+    interface = UpdatedLagrangianMethod()
+
     draw("00_init", interface)
 
     max_i = 5000
