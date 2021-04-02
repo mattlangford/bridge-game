@@ -1,6 +1,12 @@
 # Bridge Game
 
+## Overview
 A little project to play around with the Finite Element Method.
+
+Start by drawing a bridge. The grey blocks along the side are immoveable and anything touching them will also be fixed.  During the simulation, green blocks have little to no stress, red blocks are being stressed and black blocks would be destroyed (with a config flag they would be removed):
+
+![demo](https://media.giphy.com/media/VKXZp7Z76yQmYKHvaG/giphy.gif)
+
 
 ## Prerequisites
 ### MacOS

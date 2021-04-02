@@ -155,7 +155,7 @@ def get_box():
     ]
     return coords, fixed, triangles
 
-coords, fixed, triangles = get_bar()
+coords, fixed, triangles = get_box()
 
 assert len(fixed) == len(coords), f"{len(fixed)} != {len(coords)}"
 assert max([max(triangle) for triangle in triangles]) < len(coords), f"Needs to be {int(len(coords) / 2)}"
